@@ -1,8 +1,18 @@
+<div align="center">
+
 # SafeArena
 
-## About
+| [**🤗Dataset**](https://huggingface.co/datasets/McGill-NLP/safearena) | **📄Paper (TBA)** | [**🌐Website**](https://safearena.github.io) |
+| :--: | :--: | :--: |
+| [**🏆Leaderboard**](https://huggingface.co/spaces/McGill-NLP/safearena-leaderboard) | [**📦Environments**](https://huggingface.co/datasets/McGill-NLP/safearena-environments) | **⏏️Submission** (TBA) |
 
-TBD
+<br>
+
+**[SafeArena: Evaluating the Safety of Autonomous Web Agents](https://safearena.github.io)**\
+*[Ada Defne Tur*](#), [Nicholas Meade*](#), [Xing Han Lù*](#), [Alejandra Zambrano†](#), [Arkil Patel†](#), <br>[Esin Durmus](#), [Spandana Gella](#), [Karolina Stańczak](#), [Siva Reddy](#)*  
+_*Equal contribution, †Core Technical Contribution_
+
+</div>
 
 ## Installation
 
