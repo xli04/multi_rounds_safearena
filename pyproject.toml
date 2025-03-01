@@ -26,7 +26,7 @@ Homepage = "https://safearena.github.io"
 Repository = "https://github.com/mcgill-nlp/safearena"
 
 [project.optional-dependencies]
-dev = ["black"]
+dev = ["black", "twine", "setuptools"]
 
 [tool.setuptools.package-data]
 safearena = ['*.json']
