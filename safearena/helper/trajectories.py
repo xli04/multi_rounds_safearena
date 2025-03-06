@@ -239,7 +239,7 @@ class Trajectory:
     def exp_args(self):
         with open(Path(self.trajectory_dir, "exp_args.pkl"), "rb") as f:
             return pickle.load(f)
-        # example: ExpArgs(agent_args=GenericAgentArgs(agent_name='GenericAgent-gpt-4o-mini-2024-07-18', chat_model_args=OpenAIModelArgs(model_name='gpt-4o-mini-2024-07-18', max_total_tokens=128000, max_input_tokens=128000, max_new_tokens=16384, temperature=0.1, vision_support=True), flags=GenericPromptFlags(obs=ObsFlags(use_html=False, use_ax_tree=True, use_tabs=True, use_focused_element=True, use_error_logs=True, use_history=True, use_past_error_logs=False, use_action_history=True, use_think_history=False, use_diff=False, html_type='pruned_html', use_screenshot=True, use_som=False, extract_visible_tag=True, extract_clickable_tag=True, extract_coords='False', filter_visible_elements_only=False, openai_vision_detail='auto', filter_with_bid_only=False, filter_som_only=False), action=ActionFlags(action_set=HighLevelActionSetArgs(subsets=('visualwebarena',), multiaction=False, strict=False, retry_with_force=True, demo_mode='off'), long_description=False, individual_examples=False, multi_actions=None, is_strict=None), use_plan=False, use_criticise=False, use_thinking=True, use_memory=False, use_concrete_example=True, use_abstract_example=True, use_hints=True, enable_chat=False, max_prompt_tokens=40000, be_cautious=True, extra_instructions=None, add_missparsed_messages=True, max_trunc_itr=20, flag_group=None), max_retry=4), env_args=EnvArgs(task_name='visualwebarena.8', task_seed=23, max_steps=30, headless=True, record_video=False, wait_for_user_message=False, viewport=None, slow_mo=None, storage_state=None, task_kwargs=None), exp_dir=PosixPath('/home/nlp/users/xlu41/agentlab_results/2024-11-27_00-57-06_genericagent-gpt-4o-mini-2024-07-18-on-visualwebarena-test/2024-11-27_01-23-11_GenericAgent-gpt-4o-mini-2024-07-18_on_visualwebarena.8_23'), exp_name='GenericAgent-gpt-4o-mini-2024-07-18_on_visualwebarena.8_23', enable_debug=True, err_msg=None, stack_trace=None, order=4, logging_level=10, logging_level_stdout=30, exp_id='780f342b-167b-4d17-885d-9a27400c4990', depends_on=('b126f35a-4794-437e-b7cd-0ac6d9d9a4db',), save_screenshot=True, save_som=False)
+
 
     @cached_property
     def goal_object(self):
@@ -644,7 +644,6 @@ class TrajectoriesManager:
         """
         lst = [t.task_id for t in self.get_trajectories(benchmark, model_name, exp_name)]
 
-        # sort if needed
         if sort:
             # sort by task_id
             def sort_func(x):

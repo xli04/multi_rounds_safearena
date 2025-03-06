@@ -6,15 +6,9 @@ from typing import List
 
 from agentlab.agents.generic_agent.agent_configs import GenericAgentArgs
 from agentlab.experiments.study import Study
-from safearena import SafeArenaStudy, create_default_benchmark
+from safearena import create_default_benchmark
 from safearena.config import TASK_IDS
 from safearena.modeling import (
-    # prepare_qwen2, 
-    # prepare_4o, 
-    # prepare_llama_90b, 
-    # prepare_llama_90b_together, 
-    # prepare_qwen2_together, 
-    # prepare_claude,
     prepare_gpt,
     prepare_vllm_model,
     prepare_claude,
@@ -36,16 +30,6 @@ backbone_to_args = {
 }
 
 def run_experiment(backbones, n_jobs, suffix, relaunch, reproduce, benchmark, parallel="sequential"):
-    # if relaunch:
-    #     #  relaunch an existing study
-    #     study = SafeArenaStudy.load_most_recent(contains=contains)
-    #     study.find_incomplete(include_errors=True)
-    # else: 
-    #     study = SafeArenaStudy(
-    #         single_agent_args=agent_args,
-    #         suffix= suffix,
-    #         benchmark=benchmark
-    #     )
     agent_args: List[GenericAgentArgs] = []
 
     for backbone in backbones:
@@ -79,7 +63,6 @@ if __name__ == "__main__":  # necessary for dask backend
         "--backbones",
         type=str,
         default="4o-mini",
-        # allow multiple backbones
         nargs="+",
         choices=list(backbone_to_args.keys()),
     )
@@ -103,19 +86,6 @@ if __name__ == "__main__":  # necessary for dask backend
         help="""Bool for reproducibility mode. Defaults to : False""",
         action=argparse.BooleanOptionalAction,
     )
-    # parser.add_argument(
-    #     "--relaunch",
-    #     type=bool,
-    #     default=False,
-    #     help="""Bool value for relaunch". Defaults to false""",
-    #     action=argparse.BooleanOptionalAction,
-    # )
-    # parser.add_argument(
-    #     "--contains",
-    #     type=str,
-    #     default=None,
-    #     help="""Keyword to find exp dir if relaunch is set to true. Defaults to empty""",
-    # )
     parser.add_argument(
         "--relaunch",
         type=str,
@@ -131,30 +101,6 @@ if __name__ == "__main__":  # necessary for dask backend
     )
 
     args, unknown = parser.parse_known_args()
-
-    # if args.contains == None and args.relaunch == True:
-    #     raise Exception("Value contains is set to None but relaunch is true. You must provide a keyword to find the experiment directory")
-    
-    # if args.contains != None:
-    #     if args.contains == True:
-    #         raise Exception("Value contains is set to not None but relaunch is false")
-    
-    # if args.backbone == "4o-mini":
-    #     backbone_agent_arg = prepare_4o(model_name = "gpt-4o-mini-2024-07-18")
-    # elif args.backbone == "4o":
-    #     backbone_agent_arg = prepare_4o(model_name="gpt-4o-2024-11-20")
-    # elif args.backbone == "llama-3.2-vllm":
-    #     backbone_agent_arg = prepare_llama_90b()
-    # elif args.backbone == "llama-3.2-together":
-    #     backbone_agent_arg = prepare_llama_90b_together()
-    # elif args.backbone == "qwen-2-vllm":
-    #     backbone_agent_arg = prepare_qwen2()
-    # elif args.backbone == "qwen-2-together":
-    #     backbone_agent_arg = prepare_qwen2_together()
-    # elif args.backbone == "claude-3.5-sonnet":
-    #     backbone_agent_arg = prepare_claude()
-    # else:
-    #     raise Exception("Backbone not found")
 
     benchmark = create_default_benchmark(task_ids=TASK_IDS)
 

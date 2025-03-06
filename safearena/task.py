@@ -40,9 +40,6 @@ class GenericSafeArenaTask(GenericWebArenaTask):
             )
 
         # read the list of all webarena task configs
-        # import webarena
-        # all_configs_str = importlib.resources.files(safearena).joinpath("test.raw.json").read_text()
-
         from safearena.config import data_path
         all_configs_str = Path(data_path).read_text()
 
