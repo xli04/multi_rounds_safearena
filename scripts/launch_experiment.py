@@ -7,7 +7,7 @@ from typing import List
 from agentlab.agents.generic_agent.agent_configs import GenericAgentArgs
 from agentlab.experiments.study import Study
 from safearena import create_default_benchmark
-from safearena.config import TASK_IDS
+from safearena.config import SAFE_TASK_IDS, HARM_TASK_IDS
 from safearena.modeling import (
     prepare_gpt,
     prepare_vllm_model,
@@ -39,7 +39,8 @@ def run_experiment(backbones, n_jobs, suffix, relaunch, reproduce, benchmark, pa
 
     if relaunch is not None:
         print("Relaunching study from directory containing:", relaunch)
-        study = Study.load_most_recent(contains=relaunch, root_dir=Path(os.environ["AGENTLAB_EXP_ROOT"]))
+        root_dir = Path(os.getenv("AGENTLAB_EXP_ROOT", "~/agentlab_results/")).expanduser()
+        study = Study.load_most_recent(contains=relaunch, root_dir=root_dir)
         study.find_incomplete(include_errors=True)
     else:
         study = Study(agent_args, benchmark, logging_level_stdout=logging.INFO, suffix=suffix)  # type: ignore
@@ -102,7 +103,15 @@ if __name__ == "__main__":  # necessary for dask backend
 
     args, unknown = parser.parse_known_args()
 
-    benchmark = create_default_benchmark(task_ids=TASK_IDS)
+    task_type = os.getenv("SAFEARENA_TASK", "harm")
+    if task_type == "harm":
+        task_ids = HARM_TASK_IDS
+    elif task_type == "safe":
+        task_ids = SAFE_TASK_IDS
+    else:
+        raise ValueError(f"Task type {task_type} not found in available task types: ['harm', 'safe']")
+    
+    benchmark = create_default_benchmark(task_ids=task_ids, name=f"safearena-{task_type}")
 
     run_experiment(
         backbones=args.backbones,
