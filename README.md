@@ -2,9 +2,9 @@
 
 # SafeArena
 
-| [**🤗Dataset**](https://huggingface.co/datasets/McGill-NLP/safearena) | [**📄Paper**](https://arxiv.org/abs/2503.04957) | [**🌐Website**](https://safearena.github.io) |
-| :--: | :--: | :--: |
-| [**🏆Leaderboard**](https://huggingface.co/spaces/McGill-NLP/safearena-leaderboard) | [**📦Environments**](https://huggingface.co/datasets/McGill-NLP/safearena-environments) | **⏏️Submission** (TBA) |
+| [**🤗Dataset**](https://huggingface.co/datasets/McGill-NLP/safearena) | [**📄Paper**](https://arxiv.org/abs/2503.04957) | [**🌐Website**](https://safearena.github.io) | [**🏆Leaderboard**](https://huggingface.co/spaces/McGill-NLP/safearena-leaderboard) |
+| :--: | :--: | :--: | :--: |
+
 
 <br>
 
