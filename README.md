@@ -170,3 +170,20 @@ To visualize the agent's behavior, you can use the `agent_xray.py` tool derived 
 ```bash
 python apps/agent_xray.py --results_dir "<path_to_results_dir>" --port "<port>"
 ```
+
+## Citation
+
+Please cite our paper using the follow bibtex:
+
+```
+@misc{safearena2025,
+      title={SafeArena: Evaluating the Safety of Autonomous Web Agents}, 
+      author={Ada Tur and Nicholas Meade and Xing Han Lù and Alejandra Zambrano and
+              Arkil Patel and Esin Durmus and Spandana Gella and Karolina Stańczak and Siva Reddy},
+      year={2025},
+      eprint={2503.04957},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2503.04957},
+}
+```
