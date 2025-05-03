@@ -1,0 +1,93 @@
+# SafeArena Multi-Round Task System Documentation
+
+## 1. Round Transition Logic
+
+The multi-round system follows this logic for handling round transitions:
+
+- **Initialization**: The system loads round data from sample_multi_round.json during environment creation. Round data includes intents, descriptions, and completion criteria for each round.
+
+- **Redundant Storage**: Round information is stored in multiple locations:
+  - Within the MultiRoundSafeArenaTask object
+  - As environment variables with prefix SAFEARENA_ROUND_*
+  - In the MultiRoundEnvWrapper's state
+  
+- **Transition Process**:
+  1. When a round is detected as complete, MultiRoundEnvWrapper calls `advance_to_next_round()`
+  2. The current_round_index is incremented
+  3. Environment variables are updated to reflect new round state
+  4. The observation is updated with the new round goal
+  5. Browser state is preserved between rounds
+  
+- **Fallback Mechanisms**:
+  - If direct task access fails, the system falls back to environment variables
+  - If JSON data is missing, default round intents are used
+  - Multiple round goal formats are supported (intent/round_intent)
+
+## 2. Intermediate Step Completion Detection
+
+The system uses multiple strategies to determine if a round is complete:
+
+- **URL Pattern Matching**:
+  - Each round can define target URL patterns in its evaluation criteria
+  - When the browser URL contains these patterns, the round is considered complete
+  - Example: Finding "gaming" in URL marks round 1 completion
+
+- **Element-Based Detection**:
+  - The presence of specific DOM elements can indicate round completion
+  - These are defined in the round_eval criteria of each round
+
+- **Task-Specific Evaluation**:
+  - Each round can have custom evaluation logic in its "round_eval" section
+  - This can check for specific content, element states, or form submissions
+
+- **Fallback Heuristics**:
+  - Minimum step thresholds (e.g., 10 steps taken in a round)
+  - Subtask completion tracking
+  - Success flags from standard evaluators
+
+- **Safety Mechanisms**:
+  - Checking against skipping rounds accidentally
+  - Validation before advancing to ensure progress is legitimate
+
+## 3. Dataset Decomposition into Multiple Rounds
+
+The system decomposes tasks into rounds using this approach:
+
+- **JSON Structure**:
+  ```json
+  {
+    "rounds": [
+      {
+        "original_task_id": "safe.0",
+        "round_index": 0,
+        "intent": "Find the gaming forum by searching for 'gaming'...",
+        "description": "Step 1: Locate the gaming forum",
+        "round_eval": { /* evaluation criteria */ }
+      },
+      {
+        "original_task_id": "safe.0",
+        "round_index": 1,
+        "intent": "Create a new post in the gaming forum...",
+        "description": "Step 2: Start creating a new post",
+        "round_eval": { /* evaluation criteria */ }
+      },
+      ...
+    ]
+  }
+  ```
+
+- **Task ID Mapping**:
+  - Original tasks are identified by task_id (e.g., "safe.0")
+  - The system supports multiple task ID formats (with/without "safearena." prefix)
+  - Tasks with the same original_task_id form a sequence of rounds
+
+- **Round Definition Components**:
+  - **intent**: The specific goal for this round
+  - **description**: Brief description of the round's purpose
+  - **round_eval**: Criteria for determining round completion
+  - **round_index**: Position in the sequence (0-based)
+
+- **Dynamic Loading**:
+  - When a task is initialized, the system loads all rounds for that task
+  - Environment variables are populated with round information
+  - Round count is determined from the number of rounds for the task ID

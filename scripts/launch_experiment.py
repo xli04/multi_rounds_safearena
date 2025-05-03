@@ -6,7 +6,7 @@ from typing import List
 
 from agentlab.agents.generic_agent.agent_configs import GenericAgentArgs
 from agentlab.experiments.study import Study
-from safearena import create_default_benchmark
+from safearena import create_default_benchmark, create_multi_round_benchmark
 from safearena.config import SAFE_TASK_IDS, HARM_TASK_IDS
 from safearena.modeling import (
     prepare_gpt,
@@ -107,6 +107,19 @@ if __name__ == "__main__":  # necessary for dask backend
         help="""Bool for reproducibility mode. Defaults to : False""",
         action=argparse.BooleanOptionalAction,
     )
+    parser.add_argument(
+        "--multi-round",
+        type=bool,
+        default=False,
+        help="""Enable multi-round task execution mode. Defaults to : False""",
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--multi-round-data",
+        type=str,
+        default=None,
+        help="""Path to the multi-round data file. Defaults to data/sample_multi_round.json""",
+    )
 
 
     args, unknown = parser.parse_known_args()
@@ -119,7 +132,31 @@ if __name__ == "__main__":  # necessary for dask backend
     else:
         raise ValueError(f"Task type {task_type} not found in available task types: ['harm', 'safe']")
     
-    benchmark = create_default_benchmark(task_ids=task_ids, name=f"safearena-{task_type}")
+    # Create appropriate benchmark based on whether multi-round is enabled
+    if args.multi_round:
+        try:
+            # Set environment variable to enable multi-round mode globally
+            os.environ["SAFEARENA_MULTI_ROUND"] = "true"
+
+            # Filter task_ids to only include those defined in the sample file
+            # Based on our examination, only tasks 0 through 4 are in the sample file
+            filtered_task_ids = [task_id for task_id in task_ids if int(task_id.split('.')[-1]) < 5]
+            print(f"Filtered to only use tasks with multi-round definitions: {filtered_task_ids}")
+            
+            benchmark = create_multi_round_benchmark(
+                task_ids=filtered_task_ids, 
+                name=f"safearena-{task_type}-multi",
+                multi_round_data_path=args.multi_round_data
+            )
+            print(f"Using multi-round benchmark with {len(filtered_task_ids)} tasks")
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            print("Falling back to single-round benchmark")
+            benchmark = create_default_benchmark(task_ids=task_ids, name=f"safearena-{task_type}")
+    else:
+        # Ensure multi-round mode is disabled
+        os.environ["SAFEARENA_MULTI_ROUND"] = "false"
+        benchmark = create_default_benchmark(task_ids=task_ids, name=f"safearena-{task_type}")
 
     run_experiment(
         backbones=args.backbones,
