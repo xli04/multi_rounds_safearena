@@ -156,7 +156,7 @@ if __name__ == "__main__":  # necessary for dask backend
     else:
         # Ensure multi-round mode is disabled
         os.environ["SAFEARENA_MULTI_ROUND"] = "false"
-        benchmark = create_default_benchmark(task_ids=task_ids, name=f"safearena-{task_type}")
+    benchmark = create_default_benchmark(task_ids=task_ids, name=f"safearena-{task_type}")
 
     run_experiment(
         backbones=args.backbones,

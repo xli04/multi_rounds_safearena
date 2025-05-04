@@ -1,18 +1,10 @@
 #!/bin/bash
 
-# Set OpenAI API key for experiments
-export OPENAI_API_KEY=""
+# Set OpenAI API key for experiments (replace with your actual key)
+export OPENAI_API_KEY="your-api-key-here"
 
 # Set the task type (safe by default)
 export SAFEARENA_TASK="safe"  
-
-# Explicitly set multi-round mode 
-export SAFEARENA_MULTI_ROUND="true"
-
-# Enable verbose logging
-export PYTHONVERBOSE=1
-export PYTHONUNBUFFERED=1
-export LOGGING_LEVEL=DEBUG
 
 # Set the domain and suffix
 export DOMAIN_NAME="chats-lab-gui-agent.uk"
@@ -31,5 +23,5 @@ export WA_MAP="https://sa-map-${SUFFIX}.${DOMAIN_NAME}"
 # Load environment variables
 source vars/safe-cf.sh
 
-# Run with multi-round flags
-python scripts/launch_experiment.py --backbone gpt-4o-mini --multi-round True --multi-round-data data/safe_multi_round.json
+# Run with multi-round flags using the updated sample_multi_round.json
+python scripts/launch_experiment.py --backbone gpt-4o-mini --multi-round --multi-round-data data/sample_multi_round.json 
