@@ -10,9 +10,9 @@ export SAFEARENA_TASK="safe"
 export SAFEARENA_MULTI_ROUND="true"
 
 # Enable verbose logging
-export PYTHONVERBOSE=1
-export PYTHONUNBUFFERED=1
-export LOGGING_LEVEL=DEBUG
+# export PYTHONVERBOSE=1
+# export PYTHONUNBUFFERED=1
+# export LOGGING_LEVEL=DEBUG
 
 # Set the domain and suffix
 export DOMAIN_NAME="chats-lab-gui-agent.uk"
@@ -32,4 +32,4 @@ export WA_MAP="https://sa-map-${SUFFIX}.${DOMAIN_NAME}"
 source vars/safe-cf.sh
 
 # Run with multi-round flags
-python scripts/launch_experiment.py --backbone gpt-4o-mini --multi-round True --multi-round-data data/safe_multi_round.json
+python scripts/launch_experiment.py --backbone gpt-4o --multi-round --multi-round-data data/user_request.json

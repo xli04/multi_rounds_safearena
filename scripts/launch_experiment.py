@@ -110,7 +110,7 @@ if __name__ == "__main__":  # necessary for dask backend
     parser.add_argument(
         "--multi-round",
         type=bool,
-        default=False,
+        default=True,
         help="""Enable multi-round task execution mode. Defaults to : False""",
         action=argparse.BooleanOptionalAction,
     )
@@ -132,6 +132,9 @@ if __name__ == "__main__":  # necessary for dask backend
     else:
         raise ValueError(f"Task type {task_type} not found in available task types: ['harm', 'safe']")
     
+    # Initialize benchmark variable
+    benchmark = None
+    
     # Create appropriate benchmark based on whether multi-round is enabled
     if args.multi_round:
         try:
@@ -143,10 +146,19 @@ if __name__ == "__main__":  # necessary for dask backend
             filtered_task_ids = [task_id for task_id in task_ids if int(task_id.split('.')[-1]) < 5]
             print(f"Filtered to only use tasks with multi-round definitions: {filtered_task_ids}")
             
+            # Don't include multi_round_data_path in task_kwargs - it's already set in register.py
+            task_kwargs = {}
+            if args.multi_round_data:
+                # Just set the environment variable, don't add to task_kwargs
+                os.environ["SAFEARENA_MULTI_ROUND_DATA_PATH"] = args.multi_round_data
+                print(f"**** Using custom multi-round data path: {args.multi_round_data} (via environment variable) ****")
+            
+            # Only pass the path through task_kwargs, not as a direct parameter
+            # This prevents potential conflicts
             benchmark = create_multi_round_benchmark(
                 task_ids=filtered_task_ids, 
                 name=f"safearena-{task_type}-multi",
-                multi_round_data_path=args.multi_round_data
+                task_kwargs=task_kwargs
             )
             print(f"Using multi-round benchmark with {len(filtered_task_ids)} tasks")
         except FileNotFoundError as e:
@@ -156,7 +168,7 @@ if __name__ == "__main__":  # necessary for dask backend
     else:
         # Ensure multi-round mode is disabled
         os.environ["SAFEARENA_MULTI_ROUND"] = "false"
-    benchmark = create_default_benchmark(task_ids=task_ids, name=f"safearena-{task_type}")
+        benchmark = create_default_benchmark(task_ids=task_ids, name=f"safearena-{task_type}")
 
     run_experiment(
         backbones=args.backbones,

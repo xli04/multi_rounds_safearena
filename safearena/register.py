@@ -11,7 +11,15 @@ ALL_SAFEARENA_TASK_IDS = []
 ALL_MULTI_ROUND_TASK_IDS = []
 
 # Check if multi-round data exists
-multi_round_data_path = os.path.join(config.safearena_data_dir, "sample_multi_round.json")
+# First check if a custom path is specified in environment variables
+custom_path = os.getenv("SAFEARENA_MULTI_ROUND_DATA_PATH")
+if custom_path:
+    multi_round_data_path = custom_path
+    print(f"Using custom multi-round data path from environment: {multi_round_data_path}")
+else:
+    multi_round_data_path = os.path.join(config.safearena_data_dir, "sample_multi_round.json")
+    print(f"Using default multi-round data path: {multi_round_data_path}")
+
 multi_round_mode = os.getenv("SAFEARENA_MULTI_ROUND", "").lower() in ['true', '1']
 
 # Register all SafeArena tasks

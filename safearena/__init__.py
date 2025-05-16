@@ -42,6 +42,7 @@ class ModifiedEnvArgs(EnvArgs):
         from . import register
         from .multi_round_task import MultiRoundSafeArenaTask
         from .multi_round_env import MultiRoundEnvWrapper
+        from .custom_action_set import EnhancedActionSet
         import os
         import time
         import json
@@ -66,7 +67,7 @@ class ModifiedEnvArgs(EnvArgs):
         # Try to load the multi-round data from the JSON file
         multi_round_data_path = os.path.join(config.safearena_data_dir, "sample_multi_round.json")
         rounds_by_task = {}
-        round_count = 1  # Default fallback
+        round_count = 1
         
         try:
             if os.path.exists(multi_round_data_path):
@@ -149,6 +150,19 @@ class ModifiedEnvArgs(EnvArgs):
                 if hasattr(env.task, 'max_rounds'):
                     os.environ["SAFEARENA_MULTI_ROUND_COUNT"] = str(env.task.max_rounds)
                     print(f"Set SAFEARENA_MULTI_ROUND_COUNT={env.task.max_rounds}")
+            
+        # Enhance the environment's action set with our custom actions
+        if hasattr(env, 'action_set'):
+            print(f"\n{'-'*80}")
+            print(f"ENHANCING ACTION SET WITH CUSTOM ACTIONS")
+            print(f"Original action set: {type(env.action_set).__name__}")
+            
+            # Wrap the original action set with our enhanced version
+            original_action_set = env.action_set
+            env.action_set = EnhancedActionSet(original_action_set)
+            
+            print(f"Enhanced action set: {type(env.action_set).__name__}")
+            print(f"{'-'*80}\n")
             
         # Always wrap with MultiRoundEnvWrapper regardless of task type
         print(f"\n{'='*80}")
