@@ -1,96 +1,189 @@
-### SafeArena Multi-Round System Implementation v2
+<div align="center">
 
-**Download the data i decomposed from** https://drive.google.com/drive/folders/1hMKWuam3vZHJKXjojVgXGQKRWzLBNJKY?usp=share_link
+# SafeArena
 
-## 1. Round Transition Logic
+| [**🤗Dataset**](https://huggingface.co/datasets/McGill-NLP/safearena) | [**📄Paper**](https://arxiv.org/abs/2503.04957) | [**🌐Website**](https://safearena.github.io) | [**🏆Leaderboard**](https://huggingface.co/spaces/McGill-NLP/safearena-leaderboard) |
+| :--: | :--: | :--: | :--: |
 
-The multi-round system follows this logic for handling round transitions:
 
-- **Initialization**: The system loads round data from sample_multi_round.json during environment creation. Round data includes intents, descriptions, and completion criteria for each round.
-- **Redundant Storage**: Round information is stored in multiple locations:
-    - Within the MultiRoundSafeArenaTask object
-    - As environment variables with prefix SAFEARENA_ROUND_*
-    - In the MultiRoundEnvWrapper's state
-- **Transition Process**:
-    1. When a round is detected as complete, MultiRoundEnvWrapper calls `advance_to_next_round()`
-    2. The current_round_index is incremented
-    3. Environment variables are updated to reflect new round state
-    4. The observation is updated with the new round goal
-    5. Browser state is preserved between rounds
-- **Fallback Mechanisms**:
-    - If direct task access fails, the system falls back to environment variables
-    - If JSON data is missing, default round intents are used
-    - Multiple round goal formats are supported (intent/round_intent)
+<br>
 
-## 2. Intermediate Step Completion Detection
+**[SafeArena: Evaluating the Safety of Autonomous Web Agents](https://safearena.github.io)**\
+*[Ada Defne Tur*](#), [Nicholas Meade*](#), [Xing Han Lù*](#), [Alejandra Zambrano†](#), [Arkil Patel†](#), <br>[Esin Durmus](#), [Spandana Gella](#), [Karolina Stańczak](#), [Siva Reddy](#)*  
+_*Equal contribution, †Core Technical Contribution_
 
-The system uses multiple strategies to determine if a round is complete:
+</div>
 
-- **URL Pattern Matching**:
-    - Each round can define target URL patterns in its evaluation criteria
-    - When the browser URL contains these patterns, the round is considered complete
-    - Example: Finding "gaming" in URL marks round 1 completion
-- **Element-Based Detection**:
-    - The presence of specific DOM elements can indicate round completion
-    - These are defined in the round_eval criteria of each round
-- **Task-Specific Evaluation**:
-    - Each round can have custom evaluation logic in its "round_eval" section
-    - This can check for specific content, element states, or form submissions
-- **Fallback Heuristics**:
-    - Minimum step thresholds (e.g., 10 steps taken in a round)
-    - Subtask completion tracking
-    - Success flags from standard evaluators
-- **Safety Mechanisms**:
-    - Checking against skipping rounds accidentally
-    - Validation before advancing to ensure progress is legitimate
+## Installation
 
-## 3. Dataset Decomposition into Multiple Rounds
+First, clone the repository and create a virtual environment using a Python 3.10+ version:
 
-The system decomposes tasks into rounds using this approach:
+```bash
+git clone https://github.com/McGill-NLP/safearena.git
 
-- **JSON Structure**:
-    
-    ```json
-    {
-      "rounds": [
-        {
-          "original_task_id": "safe.0",
-          "round_index": 0,
-          "intent": "Find the gaming forum by searching for 'gaming'...",
-          "description": "Step 1: Locate the gaming forum",
-          "round_eval": { /* evaluation criteria */ }
-        },
-        {
-          "original_task_id": "safe.0",
-          "round_index": 1,
-          "intent": "Create a new post in the gaming forum...",
-          "description": "Step 2: Start creating a new post",
-          "round_eval": { /* evaluation criteria */ }
-        },
-        ...
-      ]
-    }
-    
-    ```
-    
-- **Task ID Mapping**:
-    - Original tasks are identified by task_id (e.g., "safe.0")
-    - The system supports multiple task ID formats (with/without "safearena." prefix)
-    - Tasks with the same original_task_id form a sequence of rounds
-- **Round Definition Components**:
-    - **intent**: The specific goal for this round
-    - **description**: Brief description of the round's purpose
-    - **round_eval**: Criteria for determining round completion
-    - **round_index**: Position in the sequence (0-based)
-- **Dynamic Loading**:
-    - When a task is initialized, the system loads all rounds for that task
-    - Environment variables are populated with round information
-    - Round count is determined from the number of rounds for the task ID
+cd safearena/
+python -m venv venv
+source venv/bin/activate
+```
 
-## 4. Some potential issues
+Then, install the required packages:
 
-- **Intermediate Check**
-    - Currently, the way I handle the transition is to use URL check to see if it finished the current round, if so go to the next rounds. If the intent for this round is just like go to a specific page, then I think this works well. However, if the intent involve write a post or something similar, I checked if the text exists in this page. This lead to a problem, as long as the agent input the target text, regardless where it is, this will be considered as finished. As the image below shows, the content is in the search bar. And it passed the check.
-        
-- **Redundant data reloading**:
-    - The way I register task now is not register all the rounds at the begining. I register the task first, then go to the dataset json to load for the rounds and then, change the update the reset and register. This may lead to OOM or too slow(may be) if we have very large dataset in the future.
+```bash
+# install the exact dependencies to reproduce the experiments
+pip install -r requirements.txt
+
+# or you can simply install the safearena package in development mode, which will install the required dependencies
+pip install -e .
+
+# Install playwright
+playwright install
+```
+
+## Task splits download
+
+First, request access to the SafeArena dataset on the Hugging Face Hub. Once you have access, you can log in using the `huggingface_hub` CLI:
+
+```bash
+pip install huggingface-hub
+huggingface-cli login
+```
+
+Then, you can download the code from the model hub using the `hf_hub_download` function inside python:
+
+```python
+from huggingface_hub import hf_hub_download
+
+# Download the safe.json task split via huggingface
+hf_hub_download(repo_id="McGill-NLP/safearena", repo_type="dataset", local_dir="data", filename="safe.json")
+# Download the harm.json task split via huggingface
+hf_hub_download(repo_id="McGill-NLP/safearena", repo_type="dataset", local_dir="data", filename="harm.json")
+```
+
+You now have the required task splits in the relative `data/` directory.
+
+## Experiments
+
+### API Keys and Base URLs as Environment Variables
+
+You first need to set your api keys and base url as environment variables, for each of the services you want to use:
+
+```bash
+export OPENAI_ORG_ID="your-openai-org-id"
+
+# API keys
+export OPENAI_API_KEY="your-openai-api-key"
+export TOGETHER_API_KEY="your-together-api-key"
+export VLLM_API_KEY="your-vllm-api-key"
+export OPENROUTER_API_KEY="your-openrouter-api-key"
+
+export VLLM_BASE_URL="https://vllm.mcgill-nlp.com"
+export TOGETHER_BASE_URL="https://api.together.xyz/v1"
+export OPENROUTER_BASE_URL="https://openrouter.ai/api/v1"
+```
+
+The `OPENAI_ORG_ID` is the organization id you are using for the OpenAI API. You can find it in the OpenAI dashboard. Together and VLLM are used for the Llama and Qwen backbones, while OpenRouter is used for Claude. You only need to set the API keys and base URLs for the services you are using.
+
+### Manually setting up environment variables
+To decide the task, you need to set the env var `SAFEARENA_TASK` to one of the following:
+
+```bash
+# if you want to run the safe task  on human data...
+export SAFEARENA_TASK="safe"
+# ... or if you want to run the harmful task on human data...
+export SAFEARENA_TASK="harm"
+```
+
+You also need to specify suffix and domain name:
+
+```bash
+export DOMAIN_NAME="your-domain.com"
+export SUFFIX="aa-1"
+```
+
+Then, you need to export webarena environment variables for the sites you want to use:
+
+```bash
+export WA_HOMEPAGE="https://sa-homepage-${SUFFIX}.${DOMAIN_NAME}"
+export WA_SHOPPING="https://sa-shopping-${SUFFIX}.${DOMAIN_NAME}/"
+export WA_SHOPPING_ADMIN="https://sa-shopping-admin-${SUFFIX}.${DOMAIN_NAME}/admin"
+export WA_REDDIT="https://sa-forum-${SUFFIX}.${DOMAIN_NAME}"
+export WA_GITLAB="https://sa-gitlab-${SUFFIX}.${DOMAIN_NAME}"
+export WA_FULL_RESET="https://sa-reset-${SUFFIX}.${DOMAIN_NAME}"
+# Those are not functional sites but are emptily defined here for compatibility with browsergym
+export WA_WIKIPEDIA="https://sa-wikipedia-${SUFFIX}.${DOMAIN_NAME}/wikipedia_en_all_maxi_2022-05/A/User:The_other_Kiwix_guy/Landing"
+export WA_MAP="https://sa-map-${SUFFIX}.${DOMAIN_NAME}"
+```
+
+Note those URLs are different from webarena, since they use docker containers specific to safearena, NOT the ones from webarena. Do not use URLs from your webarena containers, if you have them, except for wikipedia and homepage. Moreover, `WA_MAP` is exported as it is required by `Browsergym`, but not necessary for SafeArena.
+
+> [!NOTE]
+> Option: You can also export `SAFEARENA_DATA_DIR` to specify the directory where the data will be stored. By default, it will be `./data`.
+
+### Using pre-defined environment variables
+
+You can also source from some pre-defined environment variables:
+
+```bash
+# the suffix indicates the user and the instance number
+# for example, if you are user aa and you want to run on instance 1:
+export DOMAIN_NAME="your-domain.com"
+export SUFFIX="aa-1"
+
+# if you want to run the "safe" task based on the SUFFIX:
+source vars/safe-cf.sh
+
+# if you want to run the "harmful" task based on the SUFFIX:
+source vars/harm-cf.sh
+```
+
+### Launching experiments
+
+To run an experiment, use the `scripts/launch_experiment.py` script. For example, launching an experiment with the GPT-4o-mini backbone, on your domain and suffix for the harmful task:
+
+```bash
+export DOMAIN_NAME="your-domain.com"
+export SUFFIX="aa-1"
+
+source vars/harm-cf.sh
+python scripts/launch_experiment.py --backbone gpt-4o-mini
+```
+
+If you are relaunching, you can use the `--relaunch` flag to continue an experiment, and set the root agentlab results dir via env var `AGENTLAB_EXP_ROOT`:
+
+```bash
+export AGENTLAB_EXP_ROOT="/path/to/agentlab/results"  # by default, it will be "~/agentlab_results"
+
+# relaunch an experiment
+python scripts/launch_experiment.py --backbone gpt-4o-mini --relaunch "<name_of_experiment>"
+```
+
+If you want to run the task in parallel, you can use `ray`:
+
+```bash
+python scripts/launch_experiment.py --backbone gpt-4o-mini --parallel ray -n 4
+```
+
+### Reviewing experiments with agent-xray
+
+To visualize the agent's behavior, you can use the `agent_xray.py` tool derived from agentlab:
+
+```bash
+python apps/agent_xray.py --results_dir "<path_to_results_dir>" --port "<port>"
+```
+
+## Citation
+
+Please cite our paper using the follow bibtex:
+
+```
+@misc{safearena2025,
+      title={SafeArena: Evaluating the Safety of Autonomous Web Agents}, 
+      author={Ada Tur and Nicholas Meade and Xing Han Lù and Alejandra Zambrano and
+              Arkil Patel and Esin Durmus and Spandana Gella and Karolina Stańczak and Siva Reddy},
+      year={2025},
+      eprint={2503.04957},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2503.04957},
+}
+```

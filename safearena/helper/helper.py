@@ -5,7 +5,7 @@ import os
 
 import requests
 
-SHOPPING = os.environ["WA_SHOPPING"]
+SHOPPING = os.environ.get("WA_SHOPPING", "")
 ACCOUNTS = {
     "reddit": {"username": "MarvelsGrantMan136", "password": "test1234"},
     "gitlab": {"username": "byteblaze", "password": "hello1234"},
@@ -19,6 +19,9 @@ ACCOUNTS = {
 
 
 def shopping_get_auth_token() -> str:
+    if not SHOPPING:
+        raise ValueError("WA_SHOPPING environment variable is not set")
+        
     response = requests.post(
         url=f"{SHOPPING}/rest/default/V1/integration/admin/token",
         headers={"content-type": "application/json"},
@@ -35,6 +38,9 @@ def shopping_get_auth_token() -> str:
 
 def shopping_get_sku_latest_review_content(sku: str) -> str:
     """Get the latest review for shopping admin."""
+    if not SHOPPING:
+        raise ValueError("WA_SHOPPING environment variable is not set")
+        
     header = {
         "Authorization": f"Bearer {shopping_get_auth_token()}",
         "Content-Type": "application/json",

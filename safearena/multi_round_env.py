@@ -328,7 +328,7 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                             self.multi_round_task.current_round_index = self.current_round
                             
                         # Try to get the round goal from task
-                        if hasattr(self.multi_round_task, 'get_current_round_info'):
+                        if self.multi_round_task is not None and hasattr(self.multi_round_task, 'get_current_round_info'):
                             round_info = self.multi_round_task.get_current_round_info()
                             if round_info:
                                 
@@ -453,12 +453,11 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         
         # Check for potential duplicate addition - this observation might have already been added in the step method
         last_trajectory_entry = self.round_trajectory[-1] if self.round_trajectory else None
-        if last_trajectory_entry and last_trajectory_entry.get('url') == obs.get('url'):
-            logger.debug(f"Potential duplicate trajectory entry - current URL already exists in last entry")
-        else:
-            # If not a duplicate, add observation to trajectory
-            logger.debug(f"Adding new observation to trajectory")
-            self.round_trajectory.append(self._extract_state_from_obs(obs))
+        current_state = self._extract_state_from_obs(obs)
+        
+        # Always add this step to trajectory - every agent action should count
+        logger.debug(f"Adding step {len(self.round_trajectory) + 1} to trajectory: URL = {current_state.get('url')}")
+        self.round_trajectory.append(current_state)
         
         # 1. Check if task reports success
         if reward > 0 or info.get('success', False):
@@ -804,14 +803,46 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                     self.multi_round_task.current_round_index = self.current_round
                     logger.info(f"🔄🔄🔄 Synchronized task.current_round_index with wrapper.current_round: {self.current_round}")
                 
-                # Get the current round info for logging
+                # CRITICAL FIX: Use environment variables as the authoritative source for intent
+                # The task object might have wrong round data, but environment variables are correct
+                correct_intent = None
+                if round_goals and self.current_round < len(round_goals):
+                    correct_intent = round_goals[self.current_round]
+                    logger.info(f"🔧🔧🔧 Using correct intent from environment: {correct_intent[:50]}...")
+                    
+                    # Update task.intent to match the correct environment data
+                    if hasattr(self.multi_round_task, 'intent'):
+                        old_intent = getattr(self.multi_round_task, 'intent', 'None')
+                        self.multi_round_task.intent = correct_intent
+                        logger.info(f"🔧🔧🔧 Updated task.intent from: {old_intent[:30] if old_intent else 'None'}...")
+                        logger.info(f"🔧🔧🔧 Updated task.intent to: {correct_intent[:30]}...")
+                
+                # Get current round info for verification (but don't use it to set intent)
                 current_round_info = self.multi_round_task.get_current_round_info()
                 
-                # Check if round info contains intent for logging only
+                # Log what the task's round info says (for debugging)
                 if "intent" in current_round_info:
-                    logger.info(f"✓✓✓ Task has intent: {current_round_info['intent']}")
+                    logger.info(f"📝📝📝 Task round info has intent: {current_round_info['intent'][:50]}...")
                 elif "round_intent" in current_round_info:
-                    logger.info(f"✓✓✓ Task has round_intent: {current_round_info['round_intent']}")
+                    logger.info(f"📝📝📝 Task round info has round_intent: {current_round_info['round_intent'][:50]}...")
+                
+                # Log the final corrected intent
+                if correct_intent:
+                    logger.info(f"✓✓✓ Task intent corrected to environment data: {correct_intent}")
+                else:
+                    # Fallback to task data if environment data isn't available
+                    if "intent" in current_round_info and current_round_info["intent"]:
+                        self.multi_round_task.intent = current_round_info["intent"]
+                        logger.info(f"🔧🔧🔧 Fallback: Updated task.intent from task data: {current_round_info['intent'][:50]}...")
+                        logger.info(f"✓✓✓ Task has intent (fallback): {current_round_info['intent']}")
+                    elif "round_intent" in current_round_info and current_round_info["round_intent"]:
+                        self.multi_round_task.intent = current_round_info["round_intent"] 
+                        logger.info(f"🔧🔧🔧 Fallback: Updated task.intent from task data: {current_round_info['round_intent'][:50]}...")
+                        logger.info(f"✓✓✓ Task has round_intent (fallback): {current_round_info['round_intent']}")
+                    
+                # Double-check: Verify task's intent attribute is now correct
+                if hasattr(self.multi_round_task, 'intent'):
+                    logger.info(f"🔍🔍🔍 Final task.intent attribute: {self.multi_round_task.intent[:50] if self.multi_round_task.intent else 'None'}...")
             except Exception as e:
                 logger.error(f"❌❌❌ Error accessing round info from task: {e}")
         else:
