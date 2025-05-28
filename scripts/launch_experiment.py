@@ -142,8 +142,8 @@ if __name__ == "__main__":  # necessary for dask backend
             os.environ["SAFEARENA_MULTI_ROUND"] = "true"
 
             # Filter task_ids to only include those defined in the sample file
-            # Based on our examination, only tasks 0 through 4 are in the sample file
-            filtered_task_ids = [task_id for task_id in task_ids if int(task_id.split('.')[-1]) < 5]
+            # DON'T USE TESTING CODE IN MAIN BRANCH
+            filtered_task_ids = [task_id for task_id in task_ids]
             print(f"Filtered to only use tasks with multi-round definitions: {filtered_task_ids}")
             
             # Don't include multi_round_data_path in task_kwargs - it's already set in register.py

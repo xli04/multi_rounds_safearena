@@ -17,6 +17,7 @@ if custom_path:
     multi_round_data_path = custom_path
     print(f"Using custom multi-round data path from environment: {multi_round_data_path}")
 else:
+    # DON'T USE TESTING CODE IN MAIN BRANCH
     multi_round_data_path = os.path.join(config.safearena_data_dir, "sample_multi_round.json")
     print(f"Using default multi-round data path: {multi_round_data_path}")
 
