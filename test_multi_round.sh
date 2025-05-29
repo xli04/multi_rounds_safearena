@@ -25,3 +25,6 @@ source vars/safe-cf.sh
 
 # Run with multi-round flags using the updated sample_multi_round.json
 PYTHONPATH=$PYTHONPATH:. python scripts/launch_experiment.py --backbone gpt-4o-mini --multi-round --multi-round-data data/sample_multi_round.json
+
+PYTHONPATH=$PYTHONPATH:. python scripts/launch_experiment.py --backbone gpt-4o-mini --parallel ray -n 10 --multi-round --multi-round-data data/sample_multi_round.json
+# RUN WITH 10 PARALLEL JOBS
