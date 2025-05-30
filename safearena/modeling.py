@@ -7,6 +7,7 @@ export OPENAI_API_KEY="..."
 import os
 
 from safearena.harmful_agent import HarmfulGenericAgentArgs
+from safearena.enhanced_generic_agent import EnhancedGenericAgentArgs
 
 
 from agentlab.agents.generic_agent.generic_agent import GenericAgentArgs
@@ -139,8 +140,8 @@ def get_default_flags(
                 subsets=["bid"],
                 multiaction=False,
             ),
-            long_description=False,
-            individual_examples=False,
+            long_description=True,
+            individual_examples=True,
         ),
         use_plan=False,
         use_criticise=False,
@@ -194,7 +195,7 @@ def prepare_vllm_model(
         )
 
     else:
-        agent_args = GenericAgentArgs(
+        agent_args = EnhancedGenericAgentArgs(
             chat_model_args=model_args,
             flags=get_default_flags(
                 max_prompt_tokens=max_prompt_tokens,
@@ -234,7 +235,7 @@ def prepare_together(
         )
     
     else:
-        agent_args = GenericAgentArgs(
+        agent_args = EnhancedGenericAgentArgs(
             chat_model_args=TogetherModelArgs(
                 model_name=model_name,
                 max_total_tokens=max_total_tokens,
@@ -281,7 +282,7 @@ def prepare_gpt(
         )
 
     else:
-        agent_arg = GenericAgentArgs(
+        agent_arg = EnhancedGenericAgentArgs(
             chat_model_args=OpenAIModelArgs(
                 model_name=model_name,
                 max_total_tokens=max_total_tokens,
@@ -328,7 +329,7 @@ def prepare_claude(
         )
 
     else:
-        agent_arg = GenericAgentArgs(
+        agent_arg = EnhancedGenericAgentArgs(
             chat_model_args=OpenRouterModelArgs(
                 model_name=model_name,
                 max_total_tokens=max_total_tokens,
@@ -374,7 +375,7 @@ def prepare_gemini(
     )
 
     else:
-        agent_arg = GenericAgentArgs(
+        agent_arg = EnhancedGenericAgentArgs(
             chat_model_args=OpenRouterModelArgs(
                 model_name=model_name,
                 max_total_tokens=max_total_tokens,

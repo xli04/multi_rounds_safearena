@@ -157,11 +157,55 @@ class ModifiedEnvArgs(EnvArgs):
             print(f"ENHANCING ACTION SET WITH CUSTOM ACTIONS")
             print(f"Original action set: {type(env.action_set).__name__}")
             
+            # Test original action set
+            original_description = env.action_set.describe(with_long_description=True, with_examples=True)
+            has_user_request_before = 'user_request' in original_description
+            print(f"Original action set contains user_request: {has_user_request_before}")
+            
             # Wrap the original action set with our enhanced version
             original_action_set = env.action_set
             env.action_set = EnhancedActionSet(original_action_set)
             
             print(f"Enhanced action set: {type(env.action_set).__name__}")
+            
+            # Test enhanced action set
+            enhanced_description = env.action_set.describe(with_long_description=True, with_examples=True)
+            has_user_request_after = 'user_request' in enhanced_description
+            user_request_count = enhanced_description.count('user_request')
+            
+            print(f"Enhanced action set contains user_request: {has_user_request_after}")
+            print(f"Number of user_request mentions: {user_request_count}")
+            
+            # Test parsing a user_request action
+            try:
+                test_action = env.action_set.parse('user_request(username)')
+                print(f"✅ Successfully parsed test user_request action: {type(test_action).__name__}")
+                
+                # Test execution with dummy context
+                test_context = {
+                    'url': 'http://sa-forum-aa-1.chats-lab-gui-agent.uk/login',
+                    'timestamp': '2025-05-29'
+                }
+                test_result = test_action.execute(test_context)
+                print(f"✅ Test action execution successful: {test_result.get('success', False)}")
+                print(f"✅ Test returned credential: {test_result.get('credential_value', 'None')}")
+                
+            except Exception as e:
+                print(f"❌ Failed to test user_request action: {e}")
+            
+            # Show a sample of the action description being provided
+            print(f"\n📋 ACTION DESCRIPTION SAMPLE (first 500 chars):")
+            print(f"{'='*60}")
+            description_sample = enhanced_description[:500] + "..." if len(enhanced_description) > 500 else enhanced_description
+            print(description_sample)
+            print(f"{'='*60}")
+            
+            # Check if the description emphasizes login scenarios
+            has_login_emphasis = 'LOGIN' in enhanced_description.upper()
+            has_example_username_warning = 'example_username' in enhanced_description
+            print(f"Description emphasizes LOGIN scenarios: {has_login_emphasis}")
+            print(f"Description warns against example_username: {has_example_username_warning}")
+            
             print(f"{'-'*80}\n")
             
         # Always wrap with MultiRoundEnvWrapper regardless of task type

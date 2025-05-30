@@ -104,7 +104,7 @@ if __name__ == "__main__":  # necessary for dask backend
         "--jailbreak",
         type=bool,
         default=False,
-        help="""Bool for reproducibility mode. Defaults to : False""",
+        help="""Enable enhanced agents with user_request actions (also enables jailbreak behavior). When enabled, agents will use HarmfulGenericAgent which can properly handle login credentials via user_request actions instead of hardcoded values. Defaults to : False""",
         action=argparse.BooleanOptionalAction,
     )
     parser.add_argument(

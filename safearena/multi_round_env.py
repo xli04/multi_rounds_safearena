@@ -253,6 +253,96 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         """
         logger.info(f"Step in round {self.current_round + 1}/{self.total_rounds}")
         
+        # ENHANCED: Intercept string-based user_request actions (primary method)
+        if isinstance(action, str) and action.strip().startswith('user_request('):
+            logger.info(f"Intercepted user_request: {action}")
+            
+            # When agent chooses user_request, automatically perform the complete login
+            login_success = self._handle_user_request_auto_login(action)
+            
+            if login_success:
+                # Return observation after successful auto-login
+                try:
+                    # Access _get_obs through the unwrapped environment
+                    if hasattr(self.env, '_get_obs'):
+                        obs = self.env._get_obs()
+                    elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, '_get_obs'):
+                        obs = self.env.unwrapped._get_obs()
+                    else:
+                        # Fallback: get current observation
+                        obs = self.env.observation_space.sample()  # This will be replaced by proper observation
+                        
+                    info = {'user_request_handled': True, 'auto_login_success': True}
+                    logger.info(f"Auto-login successful, returning updated observation")
+                    return obs, 0.0, False, False, info
+                except Exception as e:
+                    logger.error(f"Error getting observation after auto-login: {e}")
+                    # Don't fail completely - continue with normal step
+            else:
+                logger.warning(f"Auto-login failed, continuing with normal step processing")
+        
+        # ENHANCED: Legacy support for UserRequestAction objects (should not be used with new approach)
+        elif hasattr(action, 'request_type'):  # Duck typing for UserRequestAction
+            logger.info(f"Intercepted UserRequestAction object: {getattr(action, 'request_type', 'unknown')}")
+            
+            # When agent chooses user_request, automatically perform the complete login
+            login_success = self._handle_user_request_auto_login(f"user_request({getattr(action, 'request_type', 'login')})")
+            
+            if login_success:
+                # Return observation after successful auto-login
+                try:
+                    # Access _get_obs through the unwrapped environment
+                    if hasattr(self.env, '_get_obs'):
+                        obs = self.env._get_obs()
+                    elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, '_get_obs'):
+                        obs = self.env.unwrapped._get_obs()
+                    else:
+                        # Fallback: get current observation
+                        obs = self.env.observation_space.sample()  # This will be replaced by proper observation
+                        
+                    info = {'user_request_handled': True, 'auto_login_success': True}
+                    logger.info(f"Auto-login successful, returning updated observation")
+                    return obs, 0.0, False, False, info
+                except Exception as e:
+                    logger.error(f"Error getting observation after auto-login: {e}")
+                    # Don't fail completely - continue with normal step
+            else:
+                logger.warning(f"Auto-login failed, continuing with normal step processing")
+        
+        # ENHANCED: Also intercept fill actions that were converted from user_request (for backward compatibility)
+        elif isinstance(action, str) and action.startswith("fill('username',"):
+            logger.info(f"🎯 ENVIRONMENT: Intercepted username fill (likely from user_request): {action}")
+            
+            # Check if this looks like a converted user_request action
+            from .helper.helper import ACCOUNTS
+            expected_username = ACCOUNTS.get('reddit', {}).get('username', 'MarvelsGrantMan136')
+            if expected_username in action:
+                logger.info(f"🔍 ENVIRONMENT: This appears to be a converted user_request - triggering auto-login")
+                
+                # Trigger auto-login instead of just filling username
+                login_success = self._handle_user_request_auto_login("user_request(login)")
+                
+                if login_success:
+                    try:
+                        # Access _get_obs through the unwrapped environment
+                        if hasattr(self.env, '_get_obs'):
+                            obs = self.env._get_obs()
+                        elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, '_get_obs'):
+                            obs = self.env.unwrapped._get_obs()
+                        else:
+                            # Fallback: get current observation
+                            obs = self.env.observation_space.sample()  # This will be replaced by proper observation
+                            
+                        info = {'user_request_handled': True, 'auto_login_success': True}
+                        logger.info(f"🎉 Auto-login successful via username fill, returning updated observation")
+                        return obs, 0.0, False, False, info
+                    except Exception as e:
+                        logger.error(f"❌ Error getting observation after auto-login via username fill: {e}")
+                        # Don't fail completely - continue with normal step
+                
+                # If auto-login failed, continue with normal step processing
+                logger.warning(f"⚠️ Auto-login failed, continuing with normal step processing")
+        
         # Take a step in the environment
         logger.info(f"🔄🔄🔄 Taking step in round {self.current_round + 1}/{self.total_rounds}")
         obs, reward, terminated, truncated, info = self.env.step(action)
@@ -755,8 +845,37 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         import os
         new_obs = copy.deepcopy(obs)
         
-        # Get the page object from the environment to update UI elements if necessary
-        page = self.env.page if hasattr(self.env, 'page') else None
+        # Get the current page from the browser environment
+        page = None
+        
+        # Try multiple ways to access the page
+        if hasattr(self.env, 'page') and self.env.page:
+            page = self.env.page
+            logger.info(f"🔧 Found page via env.page")
+        elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, 'page'):
+            page = self.env.unwrapped.page
+            logger.info(f"🔧 Found page via env.unwrapped.page")
+        elif hasattr(self.env, 'env') and hasattr(self.env.env, 'page'):
+            page = self.env.env.page
+            logger.info(f"🔧 Found page via env.env.page")
+            
+        # Also try accessing through the browser object
+        if not page:
+            # Try to find browser/page through different paths
+            current_env = self.env
+            while current_env and not page:
+                if hasattr(current_env, 'page') and current_env.page:
+                    page = current_env.page
+                    logger.info(f"🔧 Found page via nested environment")
+                    break
+                if hasattr(current_env, 'env'):
+                    current_env = current_env.env
+                else:
+                    break
+        
+        if not page:
+            logger.error(f"❌ No page available for auto-login after trying multiple access methods")
+            return False
         
         # Store original URL for logging only
         original_url = new_obs.get('url', '')
@@ -960,4 +1079,137 @@ class MultiRoundEnvWrapper(gym.Wrapper):
     @property
     def page(self):
         """Get the page object from the environment."""
-        return self.env.page if hasattr(self.env, 'page') else None 
+        return self.env.page if hasattr(self.env, 'page') else None
+    
+    def _handle_user_request_auto_login(self, action: str) -> bool:
+        """
+        Handle user_request actions by automatically performing the complete login.
+        
+        This uses the same WebArena auto-login logic that would normally run during task setup.
+        When an agent chooses to use user_request, we automatically log them in.
+        
+        Args:
+            action: The user_request action string from the agent
+            
+        Returns:
+            bool: True if auto-login was successful, False otherwise
+        """
+        logger.info(f"🎯 ENVIRONMENT: Processing user_request auto-login for action: {action}")
+        
+        try:
+            # Get the current page from the browser environment
+            page = None
+            
+            # Try multiple ways to access the page
+            if hasattr(self.env, 'page') and self.env.page:
+                page = self.env.page
+                logger.info(f"🔧 Found page via env.page")
+            elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, 'page'):
+                page = self.env.unwrapped.page
+                logger.info(f"🔧 Found page via env.unwrapped.page")
+            elif hasattr(self.env, 'env') and hasattr(self.env.env, 'page'):
+                page = self.env.env.page
+                logger.info(f"🔧 Found page via env.env.page")
+                
+            # Also try accessing through the browser object
+            if not page:
+                # Try to find browser/page through different paths
+                current_env = self.env
+                while current_env and not page:
+                    if hasattr(current_env, 'page') and current_env.page:
+                        page = current_env.page
+                        logger.info(f"🔧 Found page via nested environment")
+                        break
+                    if hasattr(current_env, 'env'):
+                        current_env = current_env.env
+                    else:
+                        break
+            
+            if not page:
+                logger.error(f"❌ No page available for auto-login after trying multiple access methods")
+                return False
+            
+            # Get the task and its WebArena instance
+            if not self.multi_round_task:
+                logger.error(f"❌ No task available for auto-login")
+                return False
+            
+            # Get the WebArena instance from the task
+            webarena_instance = None
+            if hasattr(self.multi_round_task, 'webarena_instance'):
+                webarena_instance = self.multi_round_task.webarena_instance
+            elif hasattr(self.env, 'task') and hasattr(self.env.task, 'webarena_instance'):
+                webarena_instance = self.env.task.webarena_instance
+            
+            if not webarena_instance:
+                logger.error(f"❌ No WebArena instance available for auto-login")
+                return False
+            
+            # Get the sites that need login from the task config
+            sites_to_login = []
+            task_config = None
+            
+            if hasattr(self.multi_round_task, 'config'):
+                task_config = self.multi_round_task.config
+            elif hasattr(self.env, 'task') and hasattr(self.env.task, 'config'):
+                task_config = self.env.task.config
+            
+            if task_config and 'sites' in task_config:
+                sites_to_login = task_config['sites']
+                logger.info(f"🔧 Found sites to login: {sites_to_login}")
+            else:
+                # Fallback: detect site from current URL
+                current_url = page.url
+                logger.info(f"🔧 No task config sites found, detecting from URL: {current_url}")
+                
+                if 'forum' in current_url or 'reddit' in current_url:
+                    sites_to_login = ['reddit']
+                elif 'gitlab' in current_url:
+                    sites_to_login = ['gitlab']
+                elif 'shopping' in current_url:
+                    sites_to_login = ['shopping']
+                else:
+                    # Default to reddit for SafeArena
+                    sites_to_login = ['reddit']
+                    logger.info(f"🔧 Defaulting to reddit login")
+            
+            # Show clear user feedback
+            print(f"\n🔑 USER_REQUEST AUTO-LOGIN TRIGGERED")
+            print(f"💡 Agent chose: {action}")
+            print(f"🎯 Automatically logging into sites: {sites_to_login}")
+            
+            # Perform the auto-login for each site (same as WebArena does)
+            login_success = False
+            for site in sites_to_login:
+                try:
+                    logger.info(f"🔐 Attempting auto-login for site: {site}")
+                    print(f"🔐 Logging into {site}...")
+                    
+                    # Use the same ui_login method that WebArena uses
+                    webarena_instance.ui_login(site=site, page=page)
+                    
+                    logger.info(f"✅ Auto-login successful for site: {site}")
+                    print(f"✅ Successfully logged into {site}")
+                    login_success = True
+                    
+                except Exception as e:
+                    logger.error(f"❌ Auto-login failed for site {site}: {e}")
+                    print(f"❌ Login failed for {site}: {e}")
+                    # Continue with other sites, don't fail completely
+            
+            if login_success:
+                print(f"🎉 AUTO-LOGIN COMPLETE - Agent is now logged in!")
+                print(f"📍 Current page: {page.url}")
+                logger.info(f"🎉 User_request auto-login completed successfully")
+                return True
+            else:
+                print(f"❌ AUTO-LOGIN FAILED - No sites were successfully logged into")
+                logger.error(f"❌ User_request auto-login failed for all sites")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error during user_request auto-login: {e}")
+            print(f"❌ Auto-login error: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            return False 

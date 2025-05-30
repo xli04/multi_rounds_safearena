@@ -28,6 +28,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
         intent_template_id: Optional[int] = None,
         with_na_hint: bool = False,
         with_homepage_hint: bool = False,
+        auto_login: bool = False,
         multi_round_data_path: str = "data/sample_multi_round.json",
     ) -> None:
         # Initialize the parent class with the original task_id
@@ -37,6 +38,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
             intent_template_id=intent_template_id,
             with_na_hint=with_na_hint,
             with_homepage_hint=with_homepage_hint,
+            auto_login=auto_login,
         )
         
         # CRITICAL FIX: Store the multi_round_data_path as an instance attribute
@@ -159,6 +161,8 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
         """
         from .helper.evaluators import safearena_eval_router
         import os
+        
+        logger.info(f"🔄 MultiRoundSafeArenaTask.setup() called with auto_login={self.auto_login}")
         
         # Use parent class setup but replace goal with the current round intent
         goal, d = super().setup(page)
