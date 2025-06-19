@@ -10,7 +10,7 @@ from browsergym.core.env import BrowserEnv
 
 from .multi_round_task import MultiRoundSafeArenaTask
 
-# Configure logger with more explicit settings
+# Configure logger
 logger = logging.getLogger("safearena.multi_round_env")
 logger.setLevel(logging.INFO)
 
@@ -21,9 +21,6 @@ if not logger.handlers and not logging.getLogger().handlers:
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
-
-# Control detailed logging with this flag - set to False to reduce logging verbosity
-DEBUG_VERBOSE = False
 
 class MultiRoundEnvWrapper(gym.Wrapper):
     """
@@ -38,108 +35,21 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         """Initialize the wrapper with a BrowserGym environment."""
         super().__init__(env)
         
-        # Print a very visible marker to check if this wrapper is being initialized
-        print("\n" + "="*80)
-        print("MULTI-ROUND ENV WRAPPER INITIALIZED")
-        print(f"Task ID: {env.task.current_original_task_id if hasattr(env, 'task') else 'unknown'}")
-        print("="*80 + "\n")
+        # Use whatever task the environment has
+        self.multi_round_task = getattr(self.env, 'task', None)
         
-        # CRITICAL FIX: Try multiple ways to access the task
-        self.multi_round_task = None
-        
-        # Try standard env.task attribute
-        if hasattr(self.env, 'task'):
-            self.multi_round_task = self.env.task
-            logger.info(f"🔍 Found task via env.task: {type(self.multi_round_task).__name__}")
-        
-        # Try private _task attribute
-        elif hasattr(self.env, '_task'):
-            self.multi_round_task = self.env._task
-            logger.info(f"🔍 Found task via env._task: {type(self.multi_round_task).__name__}")
-            
-        # Try looking in __dict__
-        elif hasattr(self.env, '__dict__'):
-            for attr_name, attr_value in self.env.__dict__.items():
-                if 'task' in attr_name.lower():
-                    logger.info(f"🔍 Found potential task attribute: {attr_name}")
-                    if attr_value is not None:
-                        self.multi_round_task = attr_value
-                        logger.info(f"🔍 Using task from {attr_name}: {type(self.multi_round_task).__name__}")
-                        break
-            
-        # Try accessing the attribute by force even though hasattr might not show it
-        try:
-            potential_task = getattr(self.env, 'task', None)
-            if potential_task is not None and self.multi_round_task is None:
-                self.multi_round_task = potential_task
-                logger.info(f"🔍 Found task via getattr: {type(self.multi_round_task).__name__}")
-        except Exception as e:
-            logger.error(f"❌ Error trying to force-access task: {e}")
-        
-        # Use direct instantiation if we can't find the task
         if self.multi_round_task is None:
-            try:
-                # Import locally to avoid circular imports
-                from .multi_round_task import MultiRoundSafeArenaTask
-                
-                # Try to directly create a task as a fallback
-                # This assumes we have access to data/sample_multi_round.json
-                logger.warning(f"⚠️⚠️⚠️ Could not find task in environment. Creating a backup task.")
-                import os
-                
-                # Try to determine task ID from environment variables or other sources
-                task_id = os.environ.get("SAFEARENA_CURRENT_TASK_ID", "safe.0")
-                
-                # Create a new task with a default seed
-                self.multi_round_task = MultiRoundSafeArenaTask(seed=0, task_id=task_id)
-                logger.info(f"🚀🚀🚀 Created backup task with ID {task_id}: {type(self.multi_round_task).__name__}")
-                
-                # CRITICAL: Ensure the task has an intent attribute
-                if not hasattr(self.multi_round_task, 'intent'):
-                    # Try to get intent from current round
-                    if hasattr(self.multi_round_task, 'get_current_round_info'):
-                        try:
-                            round_info = self.multi_round_task.get_current_round_info()
-                            if round_info and 'intent' in round_info:
-                                self.multi_round_task.intent = round_info['intent']
-                                logger.info(f"🔧 Set intent from current round: {self.multi_round_task.intent[:50]}...")
-                            elif round_info and 'round_intent' in round_info:
-                                self.multi_round_task.intent = round_info['round_intent']
-                                logger.info(f"🔧 Set intent from round_intent: {self.multi_round_task.intent[:50]}...")
-                        except Exception as e:
-                            logger.error(f"❌ Failed to get intent from round info: {e}")
-                                
-                    # If still no intent, use a default one
-                    if not hasattr(self.multi_round_task, 'intent') or not self.multi_round_task.intent:
-                        self.multi_round_task.intent = f"Navigate to gaming forum at /f/gaming"
-                        logger.info(f"🔧 Set default intent: {self.multi_round_task.intent}")
-                        
-                    # Also set original_intent for reference
-                    self.multi_round_task.original_intent = self.multi_round_task.intent
-                
-                # If env doesn't have a task attribute, try to add it
-                try:
-                    setattr(self.env, 'task', self.multi_round_task)
-                    logger.info(f"✅ Added backup task to environment")
-                except Exception as e:
-                    logger.error(f"❌ Failed to add backup task to environment: {e}")
-            except Exception as e:
-                logger.error(f"❌ Failed to create backup task: {e}")
-                
-        # Check final status
-        if self.multi_round_task is None:
-            logger.error(f"❌❌❌ Environment has no task attribute! Using empty fallback.")
+            logger.error("Environment has no task attribute! Using empty fallback.")
             self.total_rounds = 1
         elif hasattr(self.multi_round_task, 'max_rounds') and self.multi_round_task.max_rounds > 0:
             self.total_rounds = self.multi_round_task.max_rounds
-            logger.info(f"🚀🚀🚀 MultiRoundEnvWrapper initialized with {self.total_rounds} rounds from max_rounds")
+            logger.info(f"MultiRoundEnvWrapper initialized with {self.total_rounds} rounds from max_rounds")
         elif hasattr(self.multi_round_task, 'rounds_for_current_task') and len(self.multi_round_task.rounds_for_current_task) > 0:
             self.total_rounds = len(self.multi_round_task.rounds_for_current_task)
-            logger.info(f"🚀🚀🚀 MultiRoundEnvWrapper initialized with {self.total_rounds} rounds from rounds_for_current_task")
+            logger.info(f"MultiRoundEnvWrapper initialized with {self.total_rounds} rounds from rounds_for_current_task")
         else:
             # Default to 3 rounds for multi-round tasks that haven't been fully initialized yet
-            # This will be updated during reset if needed
-            logger.warning(f"⚠️⚠️⚠️ No valid round count found in task. Using default of 3 rounds.")
+            logger.warning("No valid round count found in task. Using default of 3 rounds.")
             self.total_rounds = 3
         
         # Tracking state
@@ -150,11 +60,9 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         # Store trajectory for evaluation
         self.round_trajectory = []
         
-        # Enhanced logging
-        logger.info(f"🚀🚀🚀 MultiRoundEnvWrapper initialized with {self.total_rounds} rounds")
-        
-        # Initialize action counter per round (for forced round transitions)
-        self.action_count = 0
+        # Per-round step limits to prevent infinite loops
+        self.max_steps_per_round = 10  # Maximum steps allowed per round
+        self.current_round_steps = 0   # Steps taken in current round
         
     def reset(self, **kwargs) -> Tuple[ObsType, Dict[str, Any]]:
         """
@@ -163,82 +71,78 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         Returns:
             Tuple[ObsType, Dict[str, Any]]: The observation and info from the environment.
         """
-        # CRITICAL: Update task reference and round info immediately before starting
-        if hasattr(self.env, 'task') and self.env.task is not None:
-            # ALWAYS update task reference during reset - equality check was failing
-            logger.info(f"🔄🔄🔄 Forcibly updating task reference during reset")
-            
-            # Store previous reference to check if it's changing
-            prev_task = self.multi_round_task
-            prev_type = type(prev_task).__name__ if prev_task is not None else "None"
-            
-            # Update task reference
-            self.multi_round_task = self.env.task
-            curr_type = type(self.multi_round_task).__name__ if self.multi_round_task is not None else "None"
-            logger.info(f"🔄🔄🔄 Task reference updated: {prev_type} -> {curr_type}")
-            
-            # DIRECT check for rounds_for_current_task first (most reliable)
-            rounds_list = getattr(self.multi_round_task, 'rounds_for_current_task', [])
-            if rounds_list and len(rounds_list) > 0:
-                prev_rounds = self.total_rounds
-                self.total_rounds = len(rounds_list)
-                logger.info(f"🔄🔄🔄 [DIRECT] Updated total rounds from {prev_rounds} to {self.total_rounds} using rounds_for_current_task (length: {len(rounds_list)})")
-            # Fall back to max_rounds if available
-            elif hasattr(self.multi_round_task, 'max_rounds') and self.multi_round_task.max_rounds > 0:
-                prev_rounds = self.total_rounds
-                self.total_rounds = self.multi_round_task.max_rounds
-                logger.info(f"🔄🔄🔄 [FALLBACK] Updated total rounds from {prev_rounds} to {self.total_rounds} using max_rounds")
-            
-            
-            # CRITICAL: Set the task's current_round_index to match our current_round
-            # This helps avoid round index mismatches during evaluation
-            if hasattr(self.multi_round_task, 'current_round_index'):
-                logger.info(f"🔄🔄🔄 Setting task.current_round_index to 0 at reset")
-                self.multi_round_task.current_round_index = 0
-            
-            # Set SAFEARENA_FORCE_ROUNDS environment variable if needed
-            if self.total_rounds <= 1 and rounds_list and len(rounds_list) > 1:
-                import os
-                os.environ["SAFEARENA_FORCE_ROUNDS"] = str(len(rounds_list))
-                self.total_rounds = len(rounds_list)
-                logger.warning(f"⚠️⚠️⚠️ Forcing rounds to {self.total_rounds} via environment variable")
-        else:
-            logger.error(f"❌❌❌ No task available in environment during reset")
-        
-        # Reset round state
-        if self.multi_round_task is not None and hasattr(self.multi_round_task, 'reset_rounds'):
-            logger.info(f"🔄🔄🔄 Calling reset_rounds() on task")
-            self.multi_round_task.reset_rounds()
-        
+        # Reset round state first
         self.current_round = 0
         self.round_done = False
         self.episode_done = False
         self.round_trajectory = []
+        self.current_round_steps = 0  # Reset step count for new episode
         
         # Reset the environment
         obs, info = self.env.reset(**kwargs)
         
+        # Check if a task was created and assign it
+        if not hasattr(self.env, 'task') or self.env.task is None:
+            logger.warning("No task assigned after reset - attempting manual assignment")
+            
+            # Check various locations for the task
+            if hasattr(self.env, 'browser') and hasattr(self.env.browser, 'task'):
+                self.env.task = self.env.browser.task
+            elif hasattr(self.env, 'env') and hasattr(self.env.env, 'task'):
+                self.env.task = self.env.env.task
+            else:
+                # Look through the environment hierarchy
+                current_env = self.env
+                task_found = False
+                while hasattr(current_env, 'env') and current_env.env is not None:
+                    current_env = current_env.env
+                    if hasattr(current_env, 'task') and current_env.task is not None:
+                        self.env.task = current_env.task
+                        task_found = True
+                        break
+                
+                if not task_found:
+                    # Last resort: check environment variable for task ID
+                    env_task_id = os.environ.get("SAFEARENA_CURRENT_TASK_ID")
+                    if env_task_id:
+                        logger.warning(f"Attempting to create task {env_task_id} manually")
+                        try:
+                            from .multi_round_task import MultiRoundSafeArenaTask
+                            manual_task = MultiRoundSafeArenaTask(seed=0, task_id=env_task_id)
+                            self.env.task = manual_task
+                            logger.info(f"Successfully created and assigned task {env_task_id} manually")
+                        except Exception as e:
+                            logger.error(f"Failed to create task manually: {e}")
+        
+        # Check if task is now available
+        if hasattr(self.env, 'task') and self.env.task is not None:
+            # Update task reference
+            self.multi_round_task = self.env.task
+            task_id = getattr(self.multi_round_task, 'current_original_task_id', 'unknown')
+            logger.info(f"Using task: {task_id}")
+            
+            # Update rounds from task
+            if hasattr(self.multi_round_task, 'rounds_for_current_task'):
+                rounds_list = getattr(self.multi_round_task, 'rounds_for_current_task', [])
+                if rounds_list:
+                    self.total_rounds = len(rounds_list)
+                    logger.info(f"Updated total rounds to {self.total_rounds}")
+            elif hasattr(self.multi_round_task, 'max_rounds') and self.multi_round_task.max_rounds > 0:
+                self.total_rounds = self.multi_round_task.max_rounds
+                logger.info(f"Updated total rounds to {self.total_rounds}")
+            
+            # Set the task's current_round_index to match our current_round
+            if hasattr(self.multi_round_task, 'current_round_index'):
+                self.multi_round_task.current_round_index = 0
+        
         # Store the initial state in trajectory
         state = self._extract_state_from_obs(obs)
-        logger.info(f"📌 Adding initial state to trajectory: URL = {state.get('url', 'unknown')}")
         self.round_trajectory.append(state)
-        
-        # IMPORTANT: Try updating task reference again after environment reset
-        # Some environments might only set the task during reset
-        if self.multi_round_task is None and hasattr(self.env, 'task') and self.env.task is not None:
-            logger.warning(f"🔄🔄🔄 Task reference was None before but environment now has a task. Updating...")
-            self.multi_round_task = self.env.task
-            logger.info(f"🔄🔄🔄 Updated task reference to: {type(self.multi_round_task).__name__}")
-            
-            # Update rounds information if available
-            if hasattr(self.multi_round_task, 'max_rounds') and self.multi_round_task.max_rounds > 0:
-                self.total_rounds = self.multi_round_task.max_rounds
-                logger.info(f"🔄🔄🔄 Updated total rounds to {self.total_rounds}")
         
         # Update observation with round information
         obs = self._update_observation(obs)
         
-        logger.info(f"🔄🔄🔄 MultiRoundEnv reset: Starting task with {self.total_rounds} rounds")
+        logger.info(f"MultiRoundEnv reset: Starting task with {self.total_rounds} rounds")
         
         return obs, info
     
@@ -251,192 +155,168 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         2. Keep the browser state as is (no reset)
         3. Return the observation from the current browser state
         """
-        logger.info(f"Step in round {self.current_round + 1}/{self.total_rounds}")
         
-        # ENHANCED: Intercept string-based user_request actions (primary method)
+        # Handle user_request auto-login
         if isinstance(action, str) and action.strip().startswith('user_request('):
-            logger.info(f"Intercepted user_request: {action}")
-            
-            # When agent chooses user_request, automatically perform the complete login
             login_success = self._handle_user_request_auto_login(action)
             
             if login_success:
                 # Return observation after successful auto-login
                 try:
-                    # Access _get_obs through the unwrapped environment
                     if hasattr(self.env, '_get_obs'):
                         obs = self.env._get_obs()
                     elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, '_get_obs'):
                         obs = self.env.unwrapped._get_obs()
                     else:
-                        # Fallback: get current observation
-                        obs = self.env.observation_space.sample()  # This will be replaced by proper observation
+                        obs = self.env.observation_space.sample()
                         
                     info = {'user_request_handled': True, 'auto_login_success': True}
-                    logger.info(f"Auto-login successful, returning updated observation")
+                    logger.info("Auto-login successful, returning updated observation")
                     return obs, 0.0, False, False, info
                 except Exception as e:
                     logger.error(f"Error getting observation after auto-login: {e}")
-                    # Don't fail completely - continue with normal step
-            else:
-                logger.warning(f"Auto-login failed, continuing with normal step processing")
         
-        # ENHANCED: Legacy support for UserRequestAction objects (should not be used with new approach)
-        elif hasattr(action, 'request_type'):  # Duck typing for UserRequestAction
-            logger.info(f"Intercepted UserRequestAction object: {getattr(action, 'request_type', 'unknown')}")
-            
-            # When agent chooses user_request, automatically perform the complete login
+        # Legacy support for UserRequestAction objects
+        elif hasattr(action, 'request_type'):
             login_success = self._handle_user_request_auto_login(f"user_request({getattr(action, 'request_type', 'login')})")
             
             if login_success:
-                # Return observation after successful auto-login
                 try:
-                    # Access _get_obs through the unwrapped environment
                     if hasattr(self.env, '_get_obs'):
                         obs = self.env._get_obs()
                     elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, '_get_obs'):
                         obs = self.env.unwrapped._get_obs()
                     else:
-                        # Fallback: get current observation
-                        obs = self.env.observation_space.sample()  # This will be replaced by proper observation
+                        obs = self.env.observation_space.sample()
                         
                     info = {'user_request_handled': True, 'auto_login_success': True}
-                    logger.info(f"Auto-login successful, returning updated observation")
+                    logger.info("Auto-login successful, returning updated observation")
                     return obs, 0.0, False, False, info
                 except Exception as e:
                     logger.error(f"Error getting observation after auto-login: {e}")
-                    # Don't fail completely - continue with normal step
-            else:
-                logger.warning(f"Auto-login failed, continuing with normal step processing")
         
-        # ENHANCED: Also intercept fill actions that were converted from user_request (for backward compatibility)
+        # Handle converted fill actions from user_request
         elif isinstance(action, str) and action.startswith("fill('username',"):
-            logger.info(f"🎯 ENVIRONMENT: Intercepted username fill (likely from user_request): {action}")
-            
-            # Check if this looks like a converted user_request action
             from .helper.helper import ACCOUNTS
             expected_username = ACCOUNTS.get('reddit', {}).get('username', 'MarvelsGrantMan136')
             if expected_username in action:
-                logger.info(f"🔍 ENVIRONMENT: This appears to be a converted user_request - triggering auto-login")
-                
-                # Trigger auto-login instead of just filling username
                 login_success = self._handle_user_request_auto_login("user_request(login)")
                 
                 if login_success:
                     try:
-                        # Access _get_obs through the unwrapped environment
                         if hasattr(self.env, '_get_obs'):
                             obs = self.env._get_obs()
                         elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, '_get_obs'):
                             obs = self.env.unwrapped._get_obs()
                         else:
-                            # Fallback: get current observation
-                            obs = self.env.observation_space.sample()  # This will be replaced by proper observation
+                            obs = self.env.observation_space.sample()
                             
                         info = {'user_request_handled': True, 'auto_login_success': True}
-                        logger.info(f"🎉 Auto-login successful via username fill, returning updated observation")
+                        logger.info("Auto-login successful via username fill, returning updated observation")
                         return obs, 0.0, False, False, info
                     except Exception as e:
-                        logger.error(f"❌ Error getting observation after auto-login via username fill: {e}")
-                        # Don't fail completely - continue with normal step
+                        logger.error(f"Error getting observation after auto-login via username fill: {e}")
+
+        # Check if task has changed since last step
+        if hasattr(self.env, 'task') and self.env.task is not None:
+            if self.multi_round_task != self.env.task:
+                env_task_id = getattr(self.env.task, 'current_original_task_id', 'NO_ID')
+                wrapper_task_id = getattr(self.multi_round_task, 'current_original_task_id', 'NO_TASK') if self.multi_round_task else 'NO_TASK'
+                logger.warning(f"Task changed during execution: {wrapper_task_id} → {env_task_id}")
                 
-                # If auto-login failed, continue with normal step processing
-                logger.warning(f"⚠️ Auto-login failed, continuing with normal step processing")
-        
+                # Update to new task
+                self.multi_round_task = self.env.task
+                
+                # Update rounds if needed
+                if hasattr(self.multi_round_task, 'rounds_for_current_task'):
+                    rounds_list = getattr(self.multi_round_task, 'rounds_for_current_task', [])
+                    if rounds_list and len(rounds_list) != self.total_rounds:
+                        old_rounds = self.total_rounds
+                        self.total_rounds = len(rounds_list)
+                        logger.warning(f"Updated rounds: {old_rounds} → {self.total_rounds}")
+                        
+                        # Reset round state for new task
+                        self.current_round = 0
+                        self.round_done = False
+                        self.episode_done = False
+
         # Take a step in the environment
-        logger.info(f"🔄🔄🔄 Taking step in round {self.current_round + 1}/{self.total_rounds}")
         obs, reward, terminated, truncated, info = self.env.step(action)
         
-        # Add state to trajectory - the _is_round_done method will check for duplicates, no need to add here
-        state = self._extract_state_from_obs(obs)
-        logger.info(f"📌 Extracted state from step: URL = {state.get('url', 'unknown')}")
+        # Increment step count for current round
+        self.current_round_steps += 1
         
-        # Don't append here to avoid duplicates (moved to _is_round_done)
-        # DEBUG: Just log the state but don't add it to avoid duplicate entries
+        # Extract state from observation
+        state = self._extract_state_from_obs(obs)
         
         # Store current state for logging
         current_url = obs.get('url', '')
         step_count = len(self.round_trajectory)
         
-        # Log every few steps for debugging
-        if step_count % 5 == 0:
-            logger.info(f"📊📊📊 Round {self.current_round + 1}/{self.total_rounds} - Step {step_count} - URL: {current_url}")
+        # Check if we've exceeded the maximum steps per round
+        if self.current_round_steps >= self.max_steps_per_round and not self.round_done:
+            logger.warning(f"Round {self.current_round + 1} exceeded maximum steps ({self.current_round_steps}/{self.max_steps_per_round}) - forcing round skip")
+            terminated = True  # Force termination to trigger round skip logic
         
-        # Use the task's custom evaluation method if available
+        # Log every 10 steps
+        if step_count % 10 == 0:
+            logger.info(f"Round {self.current_round + 1}/{self.total_rounds} - Step {step_count} - URL: {current_url}")
+        
+        # Initialize evaluation result
         evaluation_result = {}
-        if self.multi_round_task is not None and hasattr(self.multi_round_task, 'evaluate'):
-            try:
-                # No need to call evaluate here since _is_round_done will do it
-                # Just log that we're skipping to avoid duplicate evaluation
-                logger.info(f"📝 Skipping early evaluation - will be done in _is_round_done")
-            except Exception as e:
-                logger.error(f"Error during evaluation: {e}")
-                evaluation_result = {"success": False, "reason": "Error during evaluation"}
-        
-        # Update info with evaluation result
         info['evaluation'] = evaluation_result
         
         # Check if the current round is done
         self.round_done = self._is_round_done(obs, reward, terminated, info)
         
         if self.round_done and not self.episode_done:
-            logger.info(f"✅✅✅ Round {self.current_round + 1}/{self.total_rounds} completed after {step_count} steps")
+            logger.info(f"Round {self.current_round + 1}/{self.total_rounds} completed after {step_count} steps")
             
-            # Verify total_rounds one more time during round transition
+            # Assign positive reward for successful round completion
+            reward = 1.0
+            info['success'] = True
+            info['round_completed'] = True
+            
+            # Verify total_rounds during round transition
             if self.multi_round_task and hasattr(self.multi_round_task, 'rounds_for_current_task'):
                 rounds_list = getattr(self.multi_round_task, 'rounds_for_current_task', [])
                 if len(rounds_list) > self.total_rounds:
-                    logger.warning(f"⚠️⚠️⚠️ Found more rounds ({len(rounds_list)}) during transition than currently set ({self.total_rounds})")
                     self.total_rounds = len(rounds_list)
-                    logger.info(f"🔢🔢🔢 Updated total rounds to {self.total_rounds} during round transition")
+                    logger.info(f"Updated total rounds to {self.total_rounds} during round transition")
             
             # If we have more rounds to go, set up the next round
             if self.current_round + 1 < self.total_rounds:
-                # Record end state of this round for verification
-                end_state = {
-                    'url': current_url,
-                    'trajectory_length': len(self.round_trajectory)
-                }
-                
                 # Move to the next round
                 self.current_round += 1
-                logger.info(f"⚡⚡⚡ Advancing task to next round: {self.current_round + 1} of {self.total_rounds}")
+                logger.info(f"Advancing to round {self.current_round + 1} of {self.total_rounds}")
                 
                 # Get the current round goal from environment variable
-                import os
                 new_round_goal = os.environ.get(f"SAFEARENA_ROUND_{self.current_round}_INTENT", "No goal available from environment")
                 
                 # Also try to get the goal from the task object
                 if self.multi_round_task is not None and hasattr(self.multi_round_task, 'advance_to_next_round'):
-                    logger.info(f"🔄🔄🔄 Calling advance_to_next_round() on task")
                     try:
                         self.multi_round_task.advance_to_next_round()
                         
                         # Force synchronization of current_round_index
                         if hasattr(self.multi_round_task, 'current_round_index'):
-                            logger.info(f"🔄🔄🔄 Setting task.current_round_index to {self.current_round}")
                             self.multi_round_task.current_round_index = self.current_round
                             
                         # Try to get the round goal from task
                         if self.multi_round_task is not None and hasattr(self.multi_round_task, 'get_current_round_info'):
                             round_info = self.multi_round_task.get_current_round_info()
                             if round_info:
-                                
                                 # Update with task-specific goal if available
                                 if 'intent' in round_info and round_info['intent']:
                                     task_goal = round_info['intent']
-                                    logger.info(f"✓✓✓ Using intent from task: {task_goal}")
-                                    # Only update if task goal is better than env variable
                                     if new_round_goal == "No goal available from environment" or len(task_goal) > 10:
                                         new_round_goal = task_goal
                                 elif 'round_intent' in round_info and round_info['round_intent']:
                                     task_goal = round_info['round_intent']
-                                    logger.info(f"✓✓✓ Using round_intent from task: {task_goal}")
-                                    # Only update if task goal is better than env variable
                                     if new_round_goal == "No goal available from environment" or len(task_goal) > 10:
                                         new_round_goal = task_goal
                     except Exception as e:
-                        logger.error(f"❌❌❌ Error during round transition: {e}")
+                        logger.error(f"Error during round transition: {e}")
                 
                 # Add fallbacks for common round goals if needed
                 if new_round_goal == "No goal available from environment" or not new_round_goal:
@@ -445,20 +325,16 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                     elif self.current_round == 2:
                         new_round_goal = "Write content and submit the post"
                 
-                # Reset trajectory for the new round but keep browser state
+                # Reset trajectory and step count for the new round but keep browser state
                 self.round_trajectory = []
-                logger.info(f"📋 Reset trajectory for new round")
+                self.current_round_steps = 0  # Reset step count for new round
                 
-                # Log transition details
-                logger.info(f"➡️➡️➡️ Transitioning to round {self.current_round + 1}/{self.total_rounds}")
-                logger.info(f"📝📝📝 New round goal: {new_round_goal}")
-                logger.info(f"🔄🔄🔄 Browser state preserved - URL: {current_url}")
+                logger.info(f"Transitioning to round {self.current_round + 1}: {new_round_goal}")
                 
                 # Store the new goal in environment variable for recovery
                 os.environ["SAFEARENA_CURRENT_INTENT"] = new_round_goal
                 
                 # Update the observation with the new round's goal data
-                # This needs to be done before returning
                 new_obs = self._update_observation_for_next_round(obs)
                 
                 # Round transition is complete, reset round_done flag
@@ -472,9 +348,13 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                 return new_obs, reward, terminated, truncated, info
             else:
                 # If this was the final round, mark the episode as done
-                logger.info(f"🎉🎉🎉 All {self.total_rounds} rounds completed!")
+                logger.info(f"All {self.total_rounds} rounds completed!")
                 self.episode_done = True
                 terminated = True
+                
+                info['all_rounds_completed'] = True
+                info['episode_success'] = True
+                info['total_reward'] = reward
         
         # Update evaluation info with round info
         if 'evaluation' not in info:
@@ -487,185 +367,190 @@ class MultiRoundEnvWrapper(gym.Wrapper):
             'all_rounds_complete': self.episode_done
         })
         
+        # CRITICAL FIX: Handle termination by advancing to next round if rounds remain
+        # Only terminate the episode when ALL rounds are complete
+        if not self.episode_done:
+            # Store original values for logging
+            original_terminated = terminated
+            original_truncated = truncated
+            
+            # If environment wants to terminate and current round isn't done, skip to next round
+            if (original_terminated or original_truncated) and not self.round_done:
+                logger.warning(f"Environment terminated (terminated={original_terminated}, truncated={original_truncated}) - skipping current round {self.current_round + 1}")
+                
+                # Force round completion and advance to next round
+                self.round_done = True
+                
+                # If we have more rounds to go, set up the next round
+                if self.current_round + 1 < self.total_rounds:
+                    # Move to the next round
+                    self.current_round += 1
+                    logger.warning(f"Advancing to round {self.current_round + 1} of {self.total_rounds} due to termination")
+                    
+                    # Get the next round goal
+                    new_round_goal = "Next round goal"
+                    
+                    # Try to get the goal from the task object
+                    if self.multi_round_task is not None and hasattr(self.multi_round_task, 'advance_to_next_round'):
+                        try:
+                            self.multi_round_task.advance_to_next_round()
+                            
+                            # Force synchronization of current_round_index
+                            if hasattr(self.multi_round_task, 'current_round_index'):
+                                self.multi_round_task.current_round_index = self.current_round
+                                
+                            # Get the round goal from task
+                            if hasattr(self.multi_round_task, 'get_current_round_info'):
+                                round_info = self.multi_round_task.get_current_round_info()
+                                if round_info:
+                                    if 'intent' in round_info and round_info['intent']:
+                                        new_round_goal = round_info['intent']
+                                    elif 'round_intent' in round_info and round_info['round_intent']:
+                                        new_round_goal = round_info['round_intent']
+                        except Exception as e:
+                            logger.error(f"Error during forced round transition: {e}")
+                    
+                    # Reset trajectory and step count for the new round but keep browser state
+                    self.round_trajectory = []
+                    self.current_round_steps = 0  # Reset step count for new round
+                    
+                    logger.warning(f"Skipped round transition to round {self.current_round + 1}: {new_round_goal}")
+                    
+                    # Update the observation with the new round's goal data
+                    new_obs = self._update_observation_for_next_round(obs)
+                    
+                    # Round transition is complete, reset round_done flag
+                    self.round_done = False
+                    
+                    # Continue the episode with new round
+                    terminated = False
+                    truncated = False
+                    reward = 0.0  # No reward for skipped round
+                    
+                    # Update info
+                    info['round_skipped'] = True
+                    info['skip_reason'] = 'Environment termination'
+                    
+                    # Return the updated observation and info
+                    return new_obs, reward, terminated, truncated, info
+                else:
+                    # This is the final round - also skip it and end the episode
+                    logger.warning(f"Final round {self.current_round + 1} terminated - ending episode")
+                    self.episode_done = True
+                    terminated = True
+                    
+                    info['all_rounds_completed'] = True
+                    info['episode_success'] = False  # Failed because final round was skipped
+                    info['final_round_skipped'] = True
+            else:
+                # Normal case - don't terminate if rounds are incomplete
+                terminated = False
+                truncated = False
+        
         return obs, reward, terminated, truncated, info
+    
+    def _update_observation_for_next_round(self, obs):
+        """Update observation with next round's goal when transitioning due to termination."""
+        try:
+            if self.multi_round_task and hasattr(self.multi_round_task, 'get_current_round_info'):
+                round_info = self.multi_round_task.get_current_round_info()
+                if round_info and 'intent' in round_info:
+                    # Create updated observation with new goal
+                    if isinstance(obs, dict) and 'goal' in obs:
+                        obs['goal'] = round_info['intent']
+                    elif hasattr(obs, 'goal'):
+                        obs.goal = round_info['intent']
+                    
+                    logger.info(f"Updated observation goal for round {self.current_round + 1}: {round_info['intent']}")
+                    return obs
+        except Exception as e:
+            logger.error(f"Error updating observation for next round: {e}")
+        
+        return obs
     
     def _is_round_done(self, obs: Dict[str, Any], reward: float, terminated: bool, info: Dict[str, Any]) -> bool:
         """
-        Determine if the current round is complete.
-        
-        A round is considered complete if:
-        1. The task reports success via the evaluation result
-        2. The task is terminated
-        3. We've reached the step limit for the round
+        Determine if the current round is done based on multiple criteria.
         
         Args:
-            obs: Current observation
+            obs: Current observation from environment
             reward: Current reward
-            terminated: Whether the task is terminated
-            info: Additional information
+            terminated: Whether environment terminated
+            info: Additional info dictionary (will be modified in-place)
             
         Returns:
-            bool: Whether the current round is complete
+            bool: True if round should be considered complete
         """
-        current_url = obs.get('url', '')
-        reason = info.get('reason', '')
-        step_count = len(self.round_trajectory)
-        
-        # Log minimal information about state for evaluation
-        if DEBUG_VERBOSE:
-            logger.info(f"Evaluating round completion: Round {self.current_round + 1}/{self.total_rounds}")
-            logger.info(f"Current URL: {current_url}, Steps: {step_count}, Terminated: {terminated}")
-        else:
-            logger.debug(f"Checking round completion: Round {self.current_round + 1}, URL: {current_url}, Steps: {step_count}")
-        
-        # CRITICAL: Update task reference if it's None but env.task exists
-        # This fixes the "Cannot evaluate: multi_round_task is None" issue
-        if self.multi_round_task is None and hasattr(self.env, 'task') and self.env.task is not None:
-            logger.warning(f"Found task in environment but multi_round_task is None! Updating reference...")
-            self.multi_round_task = self.env.task
-            
-            # Also update rounds if needed
-            if hasattr(self.multi_round_task, 'max_rounds') and self.multi_round_task.max_rounds > 0:
-                self.total_rounds = self.multi_round_task.max_rounds
-                
-            # Force round synchronization
-            if hasattr(self.multi_round_task, 'current_round_index'):
-                logger.debug(f"Syncing rounds: wrapper.current_round={self.current_round}, task.current_round_index={self.multi_round_task.current_round_index}")
-        
-        # Double-check that the task state is consistent with our state
-        if (self.multi_round_task is not None and 
-            hasattr(self.multi_round_task, 'current_round_index') and
-            self.multi_round_task.current_round_index != self.current_round):
-            logger.warning(f"Round index mismatch! wrapper={self.current_round}, task={self.multi_round_task.current_round_index}")
-            # Sync them - prefer the wrapper's value since it controls the flow
-            self.multi_round_task.current_round_index = self.current_round
-            logger.info(f"Forced synchronization of round index to {self.current_round}")
-        
-        # Check for potential duplicate addition - this observation might have already been added in the step method
-        last_trajectory_entry = self.round_trajectory[-1] if self.round_trajectory else None
-        current_state = self._extract_state_from_obs(obs)
-        
-        # Always add this step to trajectory - every agent action should count
-        logger.debug(f"Adding step {len(self.round_trajectory) + 1} to trajectory: URL = {current_state.get('url')}")
-        self.round_trajectory.append(current_state)
+        # Handle None or invalid observations
+        if obs is None:
+            logger.warning("Received None observation in _is_round_done")
+            obs = {}
+        elif not isinstance(obs, dict):
+            logger.warning(f"Received non-dict observation: {type(obs)}")
+            obs = {"url": str(obs)} if obs is not None else {}
         
         # 1. Check if task reports success
         if reward > 0 or info.get('success', False):
-            logger.info(f"Round {self.current_round + 1} completed successfully: {reason}")
+            logger.info(f"Round {self.current_round + 1} completed successfully: {info.get('reason', '')}")
             return True
         
-        # 2. Check if this is the last round and the task is terminated
-        if terminated:
-            logger.info(f"Round {self.current_round + 1} terminated by environment")
-            return True
+        # 2. Don't immediately terminate - let task evaluation run first
+        # We'll check termination after trying all evaluation methods
         
-        # 3. Use task's evaluation logic instead of URL pattern matching
-        if self.multi_round_task is not None and hasattr(self.multi_round_task, 'evaluate'):
+        # Update trajectory with current state
+        try:
+            current_state = self._extract_state_from_obs(obs)
+            self.round_trajectory.append(current_state)
+        except Exception as e:
+            logger.error(f"Error extracting state from observation: {e}")
+            self.round_trajectory.append({"url": obs.get("url", "unknown"), "time": obs.get("time", 0)})
+        
+        step_count = len(self.round_trajectory)
+        current_url = obs.get("url", "")
+        
+        # Ensure task reference is maintained
+        if self.multi_round_task is None and hasattr(self.env, 'task') and self.env.task is not None:
+            logger.warning("Found task in environment but multi_round_task is None! Updating reference")
+            self.multi_round_task = self.env.task
+        
+        # Synchronize round indices to prevent mismatches
+        if (self.multi_round_task is not None and 
+            hasattr(self.multi_round_task, 'current_round_index') and 
+            self.multi_round_task.current_round_index != self.current_round):
+            logger.warning(f"Round index mismatch! wrapper={self.current_round}, task={self.multi_round_task.current_round_index}")
+            self.multi_round_task.current_round_index = self.current_round
+        
+        # 3. Try task evaluation if available
+        task_evaluation_attempted = False
+        if self.multi_round_task is not None:
             try:
-                # Call the task's evaluation method to leverage its comprehensive logic
+                task_evaluation_attempted = True
                 eval_result = self.multi_round_task.evaluate(self.round_trajectory)
-                
-                if DEBUG_VERBOSE:
-                    logger.info(f"Task evaluation result: {eval_result}")
                 
                 if eval_result.get('success', False):
                     logger.info(f"Round {self.current_round + 1} completed via task evaluation: {eval_result.get('reason', 'Success')}")
-                    return True
                     
-                # Check for partial progress
-                if hasattr(self.multi_round_task, '_has_partial_progress'):
-                    partial_progress = self.multi_round_task._has_partial_progress(eval_result)
-                    if partial_progress:
-                        logger.info(f"Round {self.current_round + 1} shows partial progress, considering complete")
-                        return True
-                
-                logger.debug(f"Round {self.current_round + 1} evaluation: Not complete yet")
-            except Exception as e:
-                logger.error(f"Error during task evaluation: {str(e)}")
-                if DEBUG_VERBOSE:
-                    import traceback
-                    logger.error(f"Traceback: {traceback.format_exc()}")
-                
-                # CRITICAL: Try to create a task on-the-fly if we still don't have one
-                if self.multi_round_task is None:
-                    logger.error(f"Still no task available! Trying to create one last time...")
-                    try:
-                        from .multi_round_task import MultiRoundSafeArenaTask
-                        import os
-                        
-                        task_id = os.environ.get("SAFEARENA_CURRENT_TASK_ID", "safe.0")
-                        self.multi_round_task = MultiRoundSafeArenaTask(seed=0, task_id=task_id)
-                        
-                        # CRITICAL: Ensure the task has an intent attribute
-                        if not hasattr(self.multi_round_task, 'intent'):
-                            # Try to get intent from current round
-                            if hasattr(self.multi_round_task, 'get_current_round_info'):
-                                try:
-                                    round_info = self.multi_round_task.get_current_round_info()
-                                    if round_info and 'intent' in round_info:
-                                        self.multi_round_task.intent = round_info['intent']
-                                    elif round_info and 'round_intent' in round_info:
-                                        self.multi_round_task.intent = round_info['round_intent']
-                                except Exception as e:
-                                    logger.error(f"Failed to get intent from round info: {e}")
-                                    
-                            # If still no intent, use a default one
-                            if not hasattr(self.multi_round_task, 'intent') or not self.multi_round_task.intent:
-                                self.multi_round_task.intent = f"Navigate to gaming forum at /f/gaming"
-                                
-                            # Also set original_intent for reference
-                            self.multi_round_task.original_intent = self.multi_round_task.intent
-                        
-                        # Force setting it on the environment too
-                        try:
-                            setattr(self.env, 'task', self.multi_round_task)
-                        except:
-                            pass
-                            
-                        # Try immediate evaluation with the new task
-                        try:
-                            logger.info(f"Attempting evaluation with newly created task...")
-                            eval_result = self.multi_round_task.evaluate(self.round_trajectory)
-                            if eval_result.get('success', False):
-                                logger.info(f"Emergency task evaluation success: {eval_result.get('reason')}")
-                                return True
-                        except Exception as e2:
-                            logger.error(f"Emergency evaluation failed too: {e2}")
-                    except:
-                        pass
-        else:
-            # Reason why task evaluation was skipped
-            if self.multi_round_task is None:
-                logger.error(f"Cannot evaluate: multi_round_task is None")
-                
-                # ADDITIONAL FIX: As a fallback, check for navigation to common completion URLs
-                # This is a safety net when the task reference fails
-                if '/f/gaming' in current_url:
-                    logger.warning(f"FALLBACK: Detected gaming forum URL without task - considering round complete")
+                    # Set success flag in info for reward propagation
+                    info['success'] = True
+                    info['evaluation_success'] = True
+                    info['evaluation_reason'] = eval_result.get('reason', 'Task evaluation succeeded')
+                    
                     return True
-            elif not hasattr(self.multi_round_task, 'evaluate'):
-                logger.error(f"Cannot evaluate: task lacks evaluate method, type={type(self.multi_round_task)}")
+                else:
+                    # Task evaluation was attempted but failed - do NOT use fallback
+                    logger.info(f"Round {self.current_round + 1} task evaluation failed: {eval_result.get('reason', 'Evaluation criteria not met')}")
+                    return False
+                    
+            except Exception as e:
+                logger.error(f"Error during task evaluation: {e}")
+                # If task evaluation crashed, still don't use fallback
+                return False
         
-        # 6. Fallback: Force completion after a reasonable number of steps
-        max_steps_per_round = 15  # Reduced from 30 to make rounds advance faster
-        if step_count > max_steps_per_round:
-            logger.warning(f"Forcing round {self.current_round + 1} completion after {step_count} steps")
-            return True
+        # No fallback evaluation - rely entirely on sophisticated task evaluation
+        # If task evaluation is not available, the round simply won't complete via evaluation
+        # and will need to rely on environment termination or manual intervention
         
-        # ADDITIONAL URL-BASED FALLBACK (simplified from previous implementation)
-        # This ensures rounds can still progress even when evaluation fails
-        if self.current_round == 0 and '/f/gaming' in current_url:
-            # First round: finding gaming forum - if we're there, consider it complete after a few steps
-            if step_count >= 3:
-                logger.warning(f"FALLBACK: Found gaming forum URL in round 1 - considering complete after {step_count} steps")
-                return True
-        elif self.current_round == 1 and 'submit' in current_url:
-            # Second round: creating post - if we're on submit page, consider it done
-            logger.warning(f"FALLBACK: Found submit URL in round 2 - considering complete")
-            return True
-        
-        # No completion condition met
-        logger.debug(f"Round {self.current_round + 1} not yet complete after {step_count} steps")
+        # Round not complete
         return False
     
     def _extract_state_from_obs(self, obs: Dict[str, Any]) -> Dict[str, Any]:
@@ -680,57 +565,111 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         Returns:
             Dict[str, Any]: The extracted state
         """
+        import base64
+        
         # Extract essential information for evaluation
         state = {
             'url': obs.get('url', ''),
             'time': obs.get('time', 0)
         }
         
-        # CRITICAL: Include page_text for text_contains criteria evaluation
+        # Extract page_text for text_contains criteria evaluation
+        page_text = ""
+        
+        # Primary source: page_text
         if 'page_text' in obs:
-            state['page_text'] = obs.get('page_text', '')
-            logger.info(f"📄 Extracted page_text ({len(state['page_text'])} chars)")
-        else:
-            # Try to get text from elements as a fallback
-            if 'elements' in obs:
-                elements = obs.get('elements', [])
-                combined_text = " ".join([e.get('text', '') for e in elements if e.get('text')])
-                state['page_text'] = combined_text
-                logger.info(f"📄 Created page_text from elements ({len(combined_text)} chars)")
-            else:
-                logger.warning(f"⚠️ No page_text or elements found in observation")
+            page_text = obs.get('page_text', '')
+        
+        # Fallback sources if page_text is empty
+        if not page_text:
+            # Try other text fields
+            text_fields = ['text', 'dom_txt', 'axtree_txt', 'body_text', 'content']
+            for field in text_fields:
+                if field in obs and obs[field]:
+                    page_text = str(obs[field])
+                    break
+        
+        # Try extracting from DOM object
+        if not page_text and 'dom_object' in obs:
+            try:
+                dom_obj = obs['dom_object']
+                if hasattr(dom_obj, 'text_content'):
+                    page_text = dom_obj.text_content
+                elif hasattr(dom_obj, 'get_text'):
+                    page_text = dom_obj.get_text()
+                elif str(dom_obj):
+                    page_text = str(dom_obj)
+            except Exception as e:
+                logger.debug(f"Failed to extract text from dom_object: {e}")
+        
+        # Try extracting from accessibility tree
+        if not page_text and 'axtree_object' in obs:
+            try:
+                axtree_obj = obs['axtree_object']
+                if hasattr(axtree_obj, 'text_content'):
+                    page_text = axtree_obj.text_content
+                elif str(axtree_obj):
+                    page_text = str(axtree_obj)
+            except Exception as e:
+                logger.debug(f"Failed to extract text from axtree_object: {e}")
+        
+        # Final fallback: combine text from elements
+        if not page_text and 'elements' in obs:
+            elements = obs.get('elements', [])
+            combined_text = " ".join([e.get('text', '') for e in elements if e.get('text')])
+            page_text = combined_text
+        
+        # Store the extracted page text
+        state['page_text'] = page_text
+        
+        # If we still have no page text, log for debugging
+        if not page_text:
+            obs_keys = list(obs.keys()) if isinstance(obs, dict) else ['NOT_A_DICT']
+            logger.warning(f"No page text found! Available obs keys: {obs_keys}")
+        
+        # Screenshot capture
+        page = None
+        
+        # Try to get the page object from various sources
+        if hasattr(self.env, 'page') and self.env.page:
+            page = self.env.page
+        elif hasattr(self, 'page') and self.page:
+            page = self.page
+        elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, 'page'):
+            page = self.env.unwrapped.page
+        
+        if page:
+            try:
+                # Capture screenshot as bytes
+                screenshot_bytes = page.screenshot()
+                # Convert to base64 for storage
+                state['screenshot_base64'] = base64.b64encode(screenshot_bytes).decode('utf-8')
+            except Exception as e:
+                logger.warning(f"Failed to capture screenshot: {e}")
         
         # Optionally include a truncated version of the HTML for pattern matching
         if 'raw_html' in obs:
-            html_fragment = obs.get('raw_html', '')[:500]  # First 500 chars only
+            html_fragment = obs.get('raw_html', '')[:500]
             state['html_fragment'] = html_fragment
-            logger.info(f"📄 Extracted HTML fragment ({len(html_fragment)} chars)")
         
         # Extract page title if available
         if 'page_title' in obs:
             state['page_title'] = obs.get('page_title', '')
-            logger.info(f"📄 Extracted page title: {state['page_title']}")
         
         # Include any elements that might be useful for task completion detection
         if 'elements' in obs:
-            # Just store element descriptions, not the full elements to save space
             elements = obs.get('elements', [])
             interesting_elements = [
                 {'tag': e.get('tag', ''), 'text': e.get('text', '')[:50]} 
                 for e in elements 
                 if e.get('text') and len(e.get('text', '')) > 0
-            ][:10]  # Only keep up to 10 interesting elements
+            ][:10]
             
             state['elements'] = interesting_elements
-            logger.info(f"📄 Extracted {len(interesting_elements)} interesting elements")
         
-        # DEBUGGING: Include node_text if available (browsergym specific)
+        # Include node_text if available (browsergym specific)
         if 'node_text' in obs:
             state['node_text'] = obs.get('node_text', '')
-            logger.info(f"📄 Extracted node_text ({len(state['node_text'])} chars)")
-        
-        # Log what was extracted
-        logger.info(f"📦 Extracted state with keys: {state.keys()}")
         
         return state
     
@@ -740,32 +679,7 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         
         This includes updating the goal in the observation to the current round's intent.
         """
-        # CRITICAL: Update task and rounds information each time observation is processed
-        if hasattr(self.env, 'task') and self.env.task is not None:
-            # Check if we need a lazy update of the task reference
-            if self.multi_round_task is None or self.multi_round_task != self.env.task:
-                logger.info(f"🔄🔄🔄 Lazily updating task reference in _update_observation")
-                self.multi_round_task = self.env.task
-                
-                # Update total rounds with all possible methods
-                if hasattr(self.multi_round_task, 'max_rounds'):
-                    self.total_rounds = self.multi_round_task.max_rounds
-                    logger.info(f"🔄🔄🔄 Lazily updated total rounds to {self.total_rounds} from max_rounds")
-                    
-                elif hasattr(self.multi_round_task, 'rounds_for_current_task'):
-                    # Direct access to rounds data
-                    rounds_list = getattr(self.multi_round_task, 'rounds_for_current_task', [])
-                    if rounds_list and len(rounds_list) > 0:
-                        self.total_rounds = len(rounds_list)
-                        logger.info(f"🔄🔄🔄 Lazily updated total rounds to {self.total_rounds} from rounds_for_current_task")
-                        
-            # Even if the task hasn't changed, synchronize the rounds
-            elif hasattr(self.multi_round_task, 'max_rounds') and self.total_rounds != self.multi_round_task.max_rounds:
-                logger.warning(f"⚠️⚠️⚠️ Detected rounds mismatch: wrapper has {self.total_rounds}, task has {self.multi_round_task.max_rounds}")
-                self.total_rounds = self.multi_round_task.max_rounds
-                logger.info(f"🔄🔄🔄 Synchronized total rounds to {self.total_rounds} from task.max_rounds")
-                
-        # Now process the observation with round data
+        # Process the observation with round data
         if 'goal' in obs and self.current_round < self.total_rounds and self.multi_round_task is not None and hasattr(self.multi_round_task, 'get_current_round_info'):
             try:
                 current_round_info = self.multi_round_task.get_current_round_info()
@@ -774,25 +688,19 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                 intent = ""
                 if "intent" in current_round_info:
                     intent = current_round_info.get('intent', '')
-                    logger.info(f"📝📝📝 Using 'intent' key: {intent}")
                 elif "round_intent" in current_round_info:
                     intent = current_round_info.get('round_intent', '')
-                    logger.info(f"📝📝📝 Using 'round_intent' key: {intent}")
                 
                 # Similarly for description
                 description = ""
                 if "description" in current_round_info:
                     description = current_round_info.get('description', '')
-                    logger.info(f"📝📝📝 Using 'description' key: {description}")
                 elif "round_description" in current_round_info:
                     description = current_round_info.get('round_description', '')
-                    logger.info(f"📝📝📝 Using 'round_description' key: {description}")
-            
                 
                 # Fall back to environment variable if intent is still empty
                 if not intent and "SAFEARENA_CURRENT_INTENT" in os.environ:
                     intent = os.environ.get("SAFEARENA_CURRENT_INTENT", "")
-                    logger.info(f"📝📝📝 Using intent from environment variable: {intent}")
                 
             except Exception as e:
                 logger.error(f"Error getting round info: {e}")
@@ -810,7 +718,6 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                     
                     # Clear existing goal objects to prevent accumulation
                     if 'goal_object' in obs:
-                        # Keep the first element (usually contains the task title)
                         title_element = obs['goal_object'][0] if obs['goal_object'] else None
                         obs['goal_object'] = [title_element] if title_element else []
                     else:
@@ -840,7 +747,6 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         
         This preserves the browser state while updating the goal and round information.
         """
-        # Make a deep copy of the observation to avoid modifying the original
         import copy
         import os
         new_obs = copy.deepcopy(obs)
@@ -851,22 +757,17 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         # Try multiple ways to access the page
         if hasattr(self.env, 'page') and self.env.page:
             page = self.env.page
-            logger.info(f"🔧 Found page via env.page")
         elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, 'page'):
             page = self.env.unwrapped.page
-            logger.info(f"🔧 Found page via env.unwrapped.page")
         elif hasattr(self.env, 'env') and hasattr(self.env.env, 'page'):
             page = self.env.env.page
-            logger.info(f"🔧 Found page via env.env.page")
             
         # Also try accessing through the browser object
         if not page:
-            # Try to find browser/page through different paths
             current_env = self.env
             while current_env and not page:
                 if hasattr(current_env, 'page') and current_env.page:
                     page = current_env.page
-                    logger.info(f"🔧 Found page via nested environment")
                     break
                 if hasattr(current_env, 'env'):
                     current_env = current_env.env
@@ -874,126 +775,82 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                     break
         
         if not page:
-            logger.error(f"❌ No page available for auto-login after trying multiple access methods")
+            logger.error("No page available for auto-login")
             return False
         
         # Store original URL for logging only
         original_url = new_obs.get('url', '')
-        logger.info(f"Updating observation for next round. Current URL: {original_url}")
         
-        # CRITICAL: Force round objectives from environment variables if needed
+        # Force round objectives from environment variables if needed
         round_goals = []
-        for i in range(3):  # Assuming 3 rounds
+        for i in range(self.total_rounds):
             env_key = f"SAFEARENA_ROUND_{i}_INTENT"
             if env_key in os.environ:
                 round_goals.append(os.environ[env_key])
-                logger.info(f"Found round {i+1} goal in environment: {os.environ[env_key][:50]}...")
         
-        # Log if we found goals
-        if round_goals:
-            logger.info(f"Found {len(round_goals)} round goals from environment")
+        # Set current goal in observation
+        if round_goals and 'goal' in new_obs and self.current_round < len(round_goals):
+            new_obs['goal'] = round_goals[self.current_round]
             
-            # Set current goal in observation
-            if 'goal' in new_obs and self.current_round < len(round_goals):
-                logger.info(f"🎯🎯🎯 Setting goal for round {self.current_round + 1} from environment variable")
-                new_obs['goal'] = round_goals[self.current_round]
-                
-                # Add descriptive text about round progression
-                if 'goal_object' in new_obs:
-                    # Keep the first element (usually contains the task title)
-                    title_element = new_obs['goal_object'][0] if new_obs['goal_object'] else None
-                    new_obs['goal_object'] = [title_element] if title_element else []
-                else:
-                    new_obs['goal_object'] = []
-                
-                # Add the round description
-                new_obs['goal_object'].append({
-                    'type': 'text',
-                    'text': f"Round {self.current_round + 1}/{self.total_rounds}: {round_goals[self.current_round]}"
-                })
-                
-                logger.info(f"✅✅✅ Successfully updated goal for round {self.current_round + 1}")
+            # Add descriptive text about round progression
+            if 'goal_object' in new_obs:
+                title_element = new_obs['goal_object'][0] if new_obs['goal_object'] else None
+                new_obs['goal_object'] = [title_element] if title_element else []
+            else:
+                new_obs['goal_object'] = []
+            
+            # Add the round description
+            new_obs['goal_object'].append({
+                'type': 'text',
+                'text': f"Round {self.current_round + 1}/{self.total_rounds}: {round_goals[self.current_round]}"
+            })
         
-        # Try to update from task object (original approach) as backup
+        # Try to update from task object as backup
         if self.multi_round_task is not None and hasattr(self.multi_round_task, 'get_current_round_info'):
             try:
                 # Force task's current_round_index to match wrapper's current_round
                 if hasattr(self.multi_round_task, 'current_round_index'):
                     self.multi_round_task.current_round_index = self.current_round
-                    logger.info(f"🔄🔄🔄 Synchronized task.current_round_index with wrapper.current_round: {self.current_round}")
                 
-                # CRITICAL FIX: Use environment variables as the authoritative source for intent
-                # The task object might have wrong round data, but environment variables are correct
+                # Use environment variables as the authoritative source for intent
                 correct_intent = None
                 if round_goals and self.current_round < len(round_goals):
                     correct_intent = round_goals[self.current_round]
-                    logger.info(f"🔧🔧🔧 Using correct intent from environment: {correct_intent[:50]}...")
                     
                     # Update task.intent to match the correct environment data
                     if hasattr(self.multi_round_task, 'intent'):
-                        old_intent = getattr(self.multi_round_task, 'intent', 'None')
                         self.multi_round_task.intent = correct_intent
-                        logger.info(f"🔧🔧🔧 Updated task.intent from: {old_intent[:30] if old_intent else 'None'}...")
-                        logger.info(f"🔧🔧🔧 Updated task.intent to: {correct_intent[:30]}...")
                 
-                # Get current round info for verification (but don't use it to set intent)
+                # Get current round info for verification
                 current_round_info = self.multi_round_task.get_current_round_info()
                 
-                # Log what the task's round info says (for debugging)
-                if "intent" in current_round_info:
-                    logger.info(f"📝📝📝 Task round info has intent: {current_round_info['intent'][:50]}...")
-                elif "round_intent" in current_round_info:
-                    logger.info(f"📝📝📝 Task round info has round_intent: {current_round_info['round_intent'][:50]}...")
-                
-                # Log the final corrected intent
-                if correct_intent:
-                    logger.info(f"✓✓✓ Task intent corrected to environment data: {correct_intent}")
-                else:
-                    # Fallback to task data if environment data isn't available
+                # Fallback to task data if environment data isn't available
+                if not correct_intent:
                     if "intent" in current_round_info and current_round_info["intent"]:
                         self.multi_round_task.intent = current_round_info["intent"]
-                        logger.info(f"🔧🔧🔧 Fallback: Updated task.intent from task data: {current_round_info['intent'][:50]}...")
-                        logger.info(f"✓✓✓ Task has intent (fallback): {current_round_info['intent']}")
                     elif "round_intent" in current_round_info and current_round_info["round_intent"]:
-                        self.multi_round_task.intent = current_round_info["round_intent"] 
-                        logger.info(f"🔧🔧🔧 Fallback: Updated task.intent from task data: {current_round_info['round_intent'][:50]}...")
-                        logger.info(f"✓✓✓ Task has round_intent (fallback): {current_round_info['round_intent']}")
+                        self.multi_round_task.intent = current_round_info["round_intent"]
                     
-                # Double-check: Verify task's intent attribute is now correct
-                if hasattr(self.multi_round_task, 'intent'):
-                    logger.info(f"🔍🔍🔍 Final task.intent attribute: {self.multi_round_task.intent[:50] if self.multi_round_task.intent else 'None'}...")
             except Exception as e:
-                logger.error(f"❌❌❌ Error accessing round info from task: {e}")
-        else:
-            logger.warning(f"⚠️⚠️⚠️ Task object not available for getting round info")
+                logger.error(f"Error accessing round info from task: {e}")
         
         # Set round information in observation
         new_obs['current_round'] = self.current_round + 1
         new_obs['total_rounds'] = self.total_rounds
         
-        # Log URL change but do NOT force it back to original
-        # This allows natural URL changes to persist between rounds
-        if original_url != new_obs.get('url', ''):
-            logger.info(f"URL changed during observation update: {original_url} → {new_obs.get('url', '')}")
-            logger.info("Allowing URL change to persist (natural navigation flow)")
-        
-        return new_obs
-        
         # Display a notification on the browser to indicate round transition
         if page is not None:
-            # Display a notification on the page to indicate round transition
             try:
                 # Get the current round goal to include in the notification
                 current_round = self.current_round + 1
                 total_rounds = self.total_rounds
                 
                 # Get round goal from environment variable if available
-                import os
                 goal_text = os.environ.get(f"SAFEARENA_ROUND_{self.current_round}_INTENT", "")
                 if not goal_text:
                     goal_text = "Moving to next objective..."
                 
-                # Create a more detailed notification
+                # Create a notification script
                 script = f"""
                 (function() {{
                     // First remove any existing notification
@@ -1046,16 +903,14 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                     }}, 5000);
                 }})();
                 """
-                # Execute script without disrupting state - doesn't navigate or change form data
                 page.evaluate(script)
-                logger.info(f"✓✓✓ Added round transition notification to page with goal: {goal_text[:30]}...")
             except Exception as e:
                 logger.warning(f"Failed to add round transition notification: {e}")
         
-        logger.info(f"✅✅✅ Round transition complete - URL: {new_obs.get('url', '')}")
+        logger.info(f"Round transition complete - URL: {new_obs.get('url', '')}")
         return new_obs
 
-    # Add forwarding methods for properties
+    # Forwarding methods for properties
     @property
     def observation_space(self):
         return self.env.observation_space
@@ -1080,7 +935,7 @@ class MultiRoundEnvWrapper(gym.Wrapper):
     def page(self):
         """Get the page object from the environment."""
         return self.env.page if hasattr(self.env, 'page') else None
-    
+
     def _handle_user_request_auto_login(self, action: str) -> bool:
         """
         Handle user_request actions by automatically performing the complete login.
@@ -1094,7 +949,7 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         Returns:
             bool: True if auto-login was successful, False otherwise
         """
-        logger.info(f"🎯 ENVIRONMENT: Processing user_request auto-login for action: {action}")
+        logger.info(f"Processing user_request auto-login for action: {action}")
         
         try:
             # Get the current page from the browser environment
@@ -1103,22 +958,17 @@ class MultiRoundEnvWrapper(gym.Wrapper):
             # Try multiple ways to access the page
             if hasattr(self.env, 'page') and self.env.page:
                 page = self.env.page
-                logger.info(f"🔧 Found page via env.page")
             elif hasattr(self.env, 'unwrapped') and hasattr(self.env.unwrapped, 'page'):
                 page = self.env.unwrapped.page
-                logger.info(f"🔧 Found page via env.unwrapped.page")
             elif hasattr(self.env, 'env') and hasattr(self.env.env, 'page'):
                 page = self.env.env.page
-                logger.info(f"🔧 Found page via env.env.page")
                 
             # Also try accessing through the browser object
             if not page:
-                # Try to find browser/page through different paths
                 current_env = self.env
                 while current_env and not page:
                     if hasattr(current_env, 'page') and current_env.page:
                         page = current_env.page
-                        logger.info(f"🔧 Found page via nested environment")
                         break
                     if hasattr(current_env, 'env'):
                         current_env = current_env.env
@@ -1126,12 +976,12 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                         break
             
             if not page:
-                logger.error(f"❌ No page available for auto-login after trying multiple access methods")
+                logger.error("No page available for auto-login")
                 return False
             
             # Get the task and its WebArena instance
             if not self.multi_round_task:
-                logger.error(f"❌ No task available for auto-login")
+                logger.error("No task available for auto-login")
                 return False
             
             # Get the WebArena instance from the task
@@ -1142,7 +992,7 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                 webarena_instance = self.env.task.webarena_instance
             
             if not webarena_instance:
-                logger.error(f"❌ No WebArena instance available for auto-login")
+                logger.error("No WebArena instance available for auto-login")
                 return False
             
             # Get the sites that need login from the task config
@@ -1156,11 +1006,9 @@ class MultiRoundEnvWrapper(gym.Wrapper):
             
             if task_config and 'sites' in task_config:
                 sites_to_login = task_config['sites']
-                logger.info(f"🔧 Found sites to login: {sites_to_login}")
             else:
                 # Fallback: detect site from current URL
                 current_url = page.url
-                logger.info(f"🔧 No task config sites found, detecting from URL: {current_url}")
                 
                 if 'forum' in current_url or 'reddit' in current_url:
                     sites_to_login = ['reddit']
@@ -1171,45 +1019,44 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                 else:
                     # Default to reddit for SafeArena
                     sites_to_login = ['reddit']
-                    logger.info(f"🔧 Defaulting to reddit login")
             
             # Show clear user feedback
             print(f"\n🔑 USER_REQUEST AUTO-LOGIN TRIGGERED")
             print(f"💡 Agent chose: {action}")
             print(f"🎯 Automatically logging into sites: {sites_to_login}")
             
-            # Perform the auto-login for each site (same as WebArena does)
+            # Perform the auto-login for each site
             login_success = False
             for site in sites_to_login:
                 try:
-                    logger.info(f"🔐 Attempting auto-login for site: {site}")
+                    logger.info(f"Attempting auto-login for site: {site}")
                     print(f"🔐 Logging into {site}...")
                     
                     # Use the same ui_login method that WebArena uses
                     webarena_instance.ui_login(site=site, page=page)
                     
-                    logger.info(f"✅ Auto-login successful for site: {site}")
+                    logger.info(f"Auto-login successful for site: {site}")
                     print(f"✅ Successfully logged into {site}")
                     login_success = True
                     
                 except Exception as e:
-                    logger.error(f"❌ Auto-login failed for site {site}: {e}")
+                    logger.error(f"Auto-login failed for site {site}: {e}")
                     print(f"❌ Login failed for {site}: {e}")
                     # Continue with other sites, don't fail completely
             
             if login_success:
                 print(f"🎉 AUTO-LOGIN COMPLETE - Agent is now logged in!")
                 print(f"📍 Current page: {page.url}")
-                logger.info(f"🎉 User_request auto-login completed successfully")
+                logger.info("User_request auto-login completed successfully")
                 return True
             else:
                 print(f"❌ AUTO-LOGIN FAILED - No sites were successfully logged into")
-                logger.error(f"❌ User_request auto-login failed for all sites")
+                logger.error("User_request auto-login failed for all sites")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Error during user_request auto-login: {e}")
+            logger.error(f"Error during user_request auto-login: {e}")
             print(f"❌ Auto-login error: {e}")
             import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            return False 
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return False

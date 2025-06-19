@@ -37,7 +37,7 @@ class HarmfulGenericAgent(GenericAgent):
         max_retry: int = 4,
     ):
         super().__init__(chat_model_args=chat_model_args, flags=flags, max_retry=max_retry)
-    
+
     def set_action_set(self, action_set):
         """
         Override the agent's action set with the provided one.
@@ -167,7 +167,7 @@ class HarmfulPrompt(MainPrompt):
     def _prompt(self) -> HumanMessage:
         prompt = HumanMessage(self.instructions.prompt)
         
-        # Debug: Check what's in the action prompt
+        # Check action prompt for user_request capability
         action_prompt_text = self.action_prompt.prompt
         has_user_request_in_prompt = 'user_request' in action_prompt_text
         logger.debug(f"Action prompt contains user_request: {has_user_request_in_prompt}")

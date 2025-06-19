@@ -3,6 +3,15 @@ import os
 from slugify import slugify
 
 import nltk
+
+# Filter to suppress image content messages
+class ImageContentFilter(logging.Filter):
+    def filter(self, record):
+        return "The content of the message has images" not in record.getMessage()
+
+# Apply the filter to suppress image content messages
+logging.getLogger().addFilter(ImageContentFilter())
+logging.getLogger("root").addFilter(ImageContentFilter())
 from agentlab.agents.agent_args import AgentArgs
 from agentlab.agents.generic_agent.agent_configs import GenericAgentArgs
 from agentlab.experiments import reproducibility_util as repro
@@ -51,16 +60,11 @@ class ModifiedEnvArgs(EnvArgs):
         # Create the environment using the parent class method
         env = super().make_env(action_mapping, exp_dir, exp_task_kwargs)
         
-        # Force explicit debugging
-        print(f"\n{'*'*100}")
-        print(f"DEBUG: ModifiedEnvArgs.make_env called for task: {getattr(env, 'task', None)}")
-        
         # Get the task ID directly from the env if available
         task_id = None
         if hasattr(env, 'task') and hasattr(env.task, 'current_original_task_id'):
             task_id = env.task.current_original_task_id
-            print(f"DEBUG: Current task ID: {task_id}")
-        
+
         # Enable multi-round mode
         os.environ["SAFEARENA_MULTI_ROUND"] = "true"
         
@@ -71,7 +75,6 @@ class ModifiedEnvArgs(EnvArgs):
         
         try:
             if os.path.exists(multi_round_data_path):
-                print(f"Loading multi-round data from {multi_round_data_path}")
                 with open(multi_round_data_path, 'r') as f:
                     data = json.load(f)
                     
@@ -87,7 +90,6 @@ class ModifiedEnvArgs(EnvArgs):
                 # Set round count based on the task ID
                 if task_id and task_id in rounds_by_task:
                     round_count = len(rounds_by_task[task_id])
-                    print(f"Task {task_id} has {round_count} rounds in the JSON data")
                     
                     # Set environment variable with the round count
                     os.environ["SAFEARENA_MULTI_ROUND_COUNT"] = str(round_count)
@@ -97,11 +99,6 @@ class ModifiedEnvArgs(EnvArgs):
                         intent = round_data.get("intent", "")
                         if intent:
                             os.environ[f"SAFEARENA_ROUND_{i}_INTENT"] = intent
-                            print(f"Set intent for round {i+1}: {intent[:50]}...")
-                else:
-                    print(f"Task ID {task_id} not found in multi-round data or task ID not available")
-            else:
-                print(f"Multi-round data file not found at {multi_round_data_path}")
         except Exception as e:
             print(f"Error loading multi-round data: {e}")
             
@@ -114,19 +111,12 @@ class ModifiedEnvArgs(EnvArgs):
             os.environ["SAFEARENA_ROUND_2_INTENT"] = "Write and submit the post"
         
         if hasattr(env, 'task'):
-            print(f"DEBUG: Task type: {type(env.task).__name__}")
-            print(f"DEBUG: Task ID: {env.task.current_original_task_id if hasattr(env.task, 'current_original_task_id') else 'unknown'}")
-            print(f"DEBUG: Is MultiRoundSafeArenaTask? {isinstance(env.task, MultiRoundSafeArenaTask)}")
-            
             # IMPORTANT: Ensure task has max_rounds set if it's a MultiRoundSafeArenaTask
             if isinstance(env.task, MultiRoundSafeArenaTask):
                 if not hasattr(env.task, 'max_rounds') or env.task.max_rounds == 0:
-                    print(f"WARNING: Task doesn't have max_rounds set properly. Forcing setup of rounds.")
-                    
                     # Ensure rounds are set up by calling _setup_rounds_for_task if it's not been done
                     if hasattr(env.task, '_setup_rounds_for_task') and hasattr(env.task, 'current_original_task_id'):
                         try:
-                            print(f"Forcing initialization of rounds for task {env.task.current_original_task_id}")
                             env.task._setup_rounds_for_task(env.task.current_original_task_id)
                             
                             # Wait for rounds to be fully set up
@@ -134,87 +124,23 @@ class ModifiedEnvArgs(EnvArgs):
                             
                             # Check if rounds were set up successfully
                             if hasattr(env.task, 'rounds_for_current_task'):
-                                rounds = len(env.task.rounds_for_current_task)
-                                print(f"Task has {rounds} rounds after forced initialization")
-                                
                                 # Manually populate environment variables with round intents
                                 for i, round_data in enumerate(env.task.rounds_for_current_task):
                                     intent = round_data.get('intent', '')
                                     if intent:
                                         os.environ[f"SAFEARENA_ROUND_{i}_INTENT"] = intent
-                                        print(f"Set env var for round {i+1}: {intent[:50]}...")
                         except Exception as e:
                             print(f"Error setting up rounds: {e}")
                 
                 # Force environment variables from task data
                 if hasattr(env.task, 'max_rounds'):
                     os.environ["SAFEARENA_MULTI_ROUND_COUNT"] = str(env.task.max_rounds)
-                    print(f"Set SAFEARENA_MULTI_ROUND_COUNT={env.task.max_rounds}")
             
         # Enhance the environment's action set with our custom actions
         if hasattr(env, 'action_set'):
-            print(f"\n{'-'*80}")
-            print(f"ENHANCING ACTION SET WITH CUSTOM ACTIONS")
-            print(f"Original action set: {type(env.action_set).__name__}")
-            
-            # Test original action set
-            original_description = env.action_set.describe(with_long_description=True, with_examples=True)
-            has_user_request_before = 'user_request' in original_description
-            print(f"Original action set contains user_request: {has_user_request_before}")
-            
             # Wrap the original action set with our enhanced version
             original_action_set = env.action_set
             env.action_set = EnhancedActionSet(original_action_set)
-            
-            print(f"Enhanced action set: {type(env.action_set).__name__}")
-            
-            # Test enhanced action set
-            enhanced_description = env.action_set.describe(with_long_description=True, with_examples=True)
-            has_user_request_after = 'user_request' in enhanced_description
-            user_request_count = enhanced_description.count('user_request')
-            
-            print(f"Enhanced action set contains user_request: {has_user_request_after}")
-            print(f"Number of user_request mentions: {user_request_count}")
-            
-            # Test parsing a user_request action
-            try:
-                test_action = env.action_set.parse('user_request(username)')
-                print(f"✅ Successfully parsed test user_request action: {type(test_action).__name__}")
-                
-                # Test execution with dummy context
-                test_context = {
-                    'url': 'http://sa-forum-aa-1.chats-lab-gui-agent.uk/login',
-                    'timestamp': '2025-05-29'
-                }
-                test_result = test_action.execute(test_context)
-                print(f"✅ Test action execution successful: {test_result.get('success', False)}")
-                print(f"✅ Test returned credential: {test_result.get('credential_value', 'None')}")
-                
-            except Exception as e:
-                print(f"❌ Failed to test user_request action: {e}")
-            
-            # Show a sample of the action description being provided
-            print(f"\n📋 ACTION DESCRIPTION SAMPLE (first 500 chars):")
-            print(f"{'='*60}")
-            description_sample = enhanced_description[:500] + "..." if len(enhanced_description) > 500 else enhanced_description
-            print(description_sample)
-            print(f"{'='*60}")
-            
-            # Check if the description emphasizes login scenarios
-            has_login_emphasis = 'LOGIN' in enhanced_description.upper()
-            has_example_username_warning = 'example_username' in enhanced_description
-            print(f"Description emphasizes LOGIN scenarios: {has_login_emphasis}")
-            print(f"Description warns against example_username: {has_example_username_warning}")
-            
-            print(f"{'-'*80}\n")
-            
-        # Always wrap with MultiRoundEnvWrapper regardless of task type
-        print(f"\n{'='*80}")
-        print(f"CREATING MULTI-ROUND WRAPPER")
-        if hasattr(env, 'task'):
-            print(f"Task ID: {env.task.current_original_task_id if hasattr(env.task, 'current_original_task_id') else 'unknown'}")
-        print(f"Wrapping with MultiRoundEnvWrapper")
-        print(f"{'='*80}\n")
             
         # Create wrapper
         wrapper = MultiRoundEnvWrapper(env)
@@ -222,15 +148,12 @@ class ModifiedEnvArgs(EnvArgs):
         # Set rounds based on what we determined from the JSON file
         if round_count > 1:
             wrapper.total_rounds = round_count
-            print(f"Setting wrapper.total_rounds = {round_count} based on JSON data")
         elif os.environ.get("SAFEARENA_MULTI_ROUND_COUNT"):
             # Fallback to environment variable
             env_rounds = int(os.environ.get("SAFEARENA_MULTI_ROUND_COUNT", "1"))
             wrapper.total_rounds = env_rounds
-            print(f"Setting wrapper.total_rounds = {env_rounds} from environment variable")
         else:
             # Last resort fallback
-            print(f"WARNING: Could not determine round count from JSON or environment. Defaulting to 1 round.")
             wrapper.total_rounds = 1
         
         return wrapper

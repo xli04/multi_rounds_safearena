@@ -207,6 +207,8 @@ def prepare_vllm_model(
 
     return agent_args
 
+# intent: login -> agent: user_request -> env: auto login -> send user message
+
 
 def prepare_together(
     model_name="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
