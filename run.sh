@@ -37,4 +37,4 @@ export SAFEARENA_ENABLE_AUTOLOGIN="true"
 # Run with multi-round flags
 # Note: --jailbreak is now optional since normal agents also have user_request functionality
 # Use --jailbreak for additional harmful behavior, or omit it for enhanced normal agents
-python scripts/launch_experiment.py --backbone gpt-4o-mini --multi-round --multi-round-data data/sample_multi_round.json
+python scripts/launch_experiment.py --backbone gpt-4o --multi-round --multi-round-data data/sample_multi_round.json

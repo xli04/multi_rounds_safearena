@@ -64,7 +64,7 @@ class ModifiedEnvArgs(EnvArgs):
         task_id = None
         if hasattr(env, 'task') and hasattr(env.task, 'current_original_task_id'):
             task_id = env.task.current_original_task_id
-
+        
         # Enable multi-round mode
         os.environ["SAFEARENA_MULTI_ROUND"] = "true"
         

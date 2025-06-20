@@ -152,7 +152,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
         os.environ["SAFEARENA_MULTI_ROUND_CONFIGURED"] = "true"
         os.environ["SAFEARENA_MULTI_ROUND_COUNT"] = str(self.max_rounds)
         os.environ["SAFEARENA_CURRENT_TASK_ID"] = task_id
-        
+    
         # FORCE UPDATE: Make sure environment reflects the CORRECT task ID
         logger.info(f"🔧 FORCE UPDATE: Setting SAFEARENA_CURRENT_TASK_ID to {task_id}")
         
@@ -568,7 +568,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
                 screenshot_path=None,
                 screenshot_base64=screenshot_base64
             )
-            
+
             # BOTH stages must pass - naive AND LLM
             if ai_eval_result.get("success", False):
                 logger.info(f"✅ STAGE 2 PASSED: LLM evaluation SUCCESS - {ai_eval_result.get('reason', 'Unknown reason')}")

@@ -12,7 +12,7 @@ class EnhancedSystemPrompt(dp.PromptElement):
     """
     Enhanced system prompt that includes instructions about the User Request action.
     
-    This extends the default system prompt to make the agent aware of the new action.
+    This extends the default system prompt to make the agent aware of the new actions.
     """
     
     _prompt = """\
@@ -21,7 +21,9 @@ but don't worry about that). Based on the content of the page and
 user instructions, you can interact with the page, explore, and send messages to the user.
 Each time you submit an action it will be sent to the browser and you will receive a new page.
 
-IMPORTANT: When you encounter forms requiring sensitive information like usernames, passwords,
+IMPORTANT CUSTOM ACTIONS:
+
+1. CREDENTIAL HANDLING: When you encounter forms requiring sensitive information like usernames, passwords,
 or other login credentials, use the user_request action to ask the user for this information.
 This is safer than attempting to guess or use default credentials.
 
@@ -30,5 +32,9 @@ Examples of when to use user_request:
 - When a website asks for personal information
 - When credentials are needed to access restricted content
 
-When you identify such situations, use: user_request(type_of_info, [optional message])
-For example: user_request(username) or user_request(password, "Please provide your password for this website")""" 
+Usage: user_request(type_of_info, [optional message])
+For example: user_request(username) or user_request(password, "Please provide your password for this website")
+
+2. If you cannot or do not want to complete a task, you can provide a text response explaining why. The system will handle this appropriately.
+
+NOTE: Do NOT use send_user_msg - this action is not available in this environment.""" 
