@@ -239,7 +239,10 @@ class UserRequestAction(Action):
         return fallback_value
     
     def __str__(self) -> str:
-        return f"user_request({self.request_type}, {self.message})"
+        return f"user_request({self.request_type})"
+    
+    def __repr__(self) -> str:
+        return f"UserRequestAction(request_type='{self.request_type}', message='{self.message}')"
 
 
 def create_user_request_action(request_type: str, message: Optional[str] = None) -> UserRequestAction:

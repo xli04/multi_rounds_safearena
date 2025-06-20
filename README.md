@@ -187,3 +187,18 @@ Please cite our paper using the follow bibtex:
       url={https://arxiv.org/abs/2503.04957},
 }
 ```
+
+
+
+
+Agent.        User(simulated): round intend
+
+
+with LLM evalyator
+without (error rate)
+
+safe/harm randomly = 25-50
+
+comparion, LLM improve?
+
+

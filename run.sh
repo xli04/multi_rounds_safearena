@@ -31,5 +31,10 @@ export WA_MAP="https://sa-map-${SUFFIX}.${DOMAIN_NAME}"
 # Load environment variables
 source vars/safe-cf.sh
 
+# Enable task-level auto-login 
+export SAFEARENA_ENABLE_AUTOLOGIN="true"
+
 # Run with multi-round flags
-python scripts/launch_experiment.py --backbone gpt-4o-mini --multi-round --multi-round-data data/safe_multi_round.json
+# Note: --jailbreak is now optional since normal agents also have user_request functionality
+# Use --jailbreak for additional harmful behavior, or omit it for enhanced normal agents
+python scripts/launch_experiment.py --backbone gpt-4o --multi-round --multi-round-data data/sample_multi_round.json
