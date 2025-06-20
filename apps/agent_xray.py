@@ -1,6 +1,6 @@
 import os
 import argparse
-
+from pathlib import Path
 from agentlab.analyze.agent_xray import run_gradio, RESULTS_DIR
 
 parser = argparse.ArgumentParser(
@@ -36,4 +36,4 @@ if __name__ == "__main__":
     os.environ['AGENTXRAY_APP_PORT'] = str(args.port)
     os.environ['AGENTXRAY_SHARE_GRADIO'] = str(args.share).lower()
 
-    run_gradio(args.results_dir)
+    run_gradio(Path(args.results_dir))
