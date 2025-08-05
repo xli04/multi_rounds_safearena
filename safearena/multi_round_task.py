@@ -540,7 +540,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
                             page_html: str = None, screenshot_path: str = None, 
                             screenshot_base64: str = None, previous_screenshot: str = None) -> Dict[str, Any]:
         """
-        Use OpenAI's GPT-4V to perform a visual evaluation of the page.
+        Use OpenAI's GPT-4.1 to perform a visual evaluation of the page.
         
         Args:
             round_intent: The intent/goal of the current round
