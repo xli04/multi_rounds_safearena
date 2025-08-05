@@ -7,6 +7,7 @@ for proper credential handling in login scenarios.
 
 import logging
 from dataclasses import dataclass
+import os
 
 from agentlab.llm.chat_api import BaseModelArgs
 from agentlab.agents.generic_agent.generic_agent import GenericAgentArgs, GenericAgent, GenericPromptFlags
@@ -66,11 +67,120 @@ class EnhancedGenericAgent(GenericAgent):
     @cost_tracker_decorator
     def get_action(self, obs):
         """
-        Enhanced get_action that captures None returns and treats them as text refusals.
+        Enhanced harmful agent that captures None returns and treats them as text refusals.
         
         When agents refuse with text responses that can't be parsed, the parent get_action
         returns None, which we can detect and handle as a refusal.
         """
+        
+        # COMPREHENSIVE DEBUG LOGGING - BEFORE AGENT CHOOSES ACTION
+        logger.info(f"=" * 80)
+        logger.info(f"🔍 AGENT DEBUG - get_action called")
+        logger.info(f"🔍 Observation type: {type(obs)}")
+        
+        if isinstance(obs, dict):
+            logger.info(f"🔍 Observation keys: {list(obs.keys())}")
+            
+            # 1. LOG ROUND INFORMATION
+            current_round = obs.get('current_round', 'NOT SET')
+            total_rounds = obs.get('total_rounds', 'NOT SET') 
+            logger.info(f"🔄 ROUND INFO: {current_round}/{total_rounds}")
+            
+            # 2. LOG GOAL FIELD (most important for round transitions)
+            if 'goal' in obs:
+                goal_text = obs['goal']
+                logger.info(f"🎯 GOAL FIELD LENGTH: {len(goal_text)} chars")
+                logger.info(f"🎯 GOAL FIELD CONTENT:")
+                logger.info(f"   {goal_text}")
+            else:
+                logger.info(f"🎯 NO GOAL FIELD IN OBSERVATION!")
+                
+            # 3. LOG GOAL_OBJECT FIELD
+            if 'goal_object' in obs:
+                goal_obj = obs['goal_object']
+                logger.info(f"📋 GOAL_OBJECT TYPE: {type(goal_obj)}")
+                if isinstance(goal_obj, list):
+                    logger.info(f"📋 GOAL_OBJECT has {len(goal_obj)} items:")
+                    for i, item in enumerate(goal_obj):
+                        if isinstance(item, dict):
+                            logger.info(f"   Item {i}: {item}")
+                        else:
+                            logger.info(f"   Item {i}: {item}")
+                else:
+                    logger.info(f"📋 GOAL_OBJECT: {goal_obj}")
+            else:
+                logger.info(f"📋 NO GOAL_OBJECT FIELD!")
+                
+            # 4. LOG PAGE STATE
+            current_url = obs.get('url', 'NO URL')
+            logger.info(f"🌐 CURRENT URL: {current_url}")
+            
+            # 5. LOG PAGE CONTENT (to see if fill action worked)
+            if 'page_text' in obs:
+                page_text = obs['page_text']
+                # Look for the product name in page text
+                if 'Humas Halloween cosplay' in page_text:
+                    logger.info(f"✅ PAGE TEXT CONTAINS: 'Humas Halloween cosplay'")
+                if 'Authentic Palestinian Keffiyeh' in page_text:
+                    logger.info(f"📝 PAGE TEXT CONTAINS: 'Authentic Palestinian Keffiyeh'")
+                logger.info(f"📄 PAGE TEXT LENGTH: {len(page_text)} chars")
+                
+            # 6. LOG DOM ELEMENTS (to check form fields)
+            if 'dom_object' in obs:
+                try:
+                    dom_obj = obs['dom_object']
+                    # Look for input fields
+                    input_fields = []
+                    if hasattr(dom_obj, 'find_all'):
+                        inputs = dom_obj.find_all('input')
+                        for inp in inputs[:5]:  # First 5 inputs
+                            field_id = inp.get('id', 'NO_ID')
+                            field_value = inp.get('value', 'NO_VALUE')
+                            field_type = inp.get('type', 'text')
+                            input_fields.append(f"ID:{field_id}, VALUE:{field_value}, TYPE:{field_type}")
+                            
+                    logger.info(f"🔲 INPUT FIELDS FOUND: {len(input_fields)}")
+                    for field in input_fields:
+                        logger.info(f"   {field}")
+                        
+                except Exception as e:
+                    logger.info(f"🔲 ERROR READING DOM: {e}")
+                    
+            # 7. LOG ELEMENTS ARRAY (if available)
+            if 'elements' in obs and isinstance(obs['elements'], list):
+                logger.info(f"🧩 ELEMENTS ARRAY: {len(obs['elements'])} elements")
+                # Look for elements with specific IDs or containing product name
+                for i, elem in enumerate(obs['elements'][:10]):  # First 10 elements
+                    if isinstance(elem, dict):
+                        elem_id = elem.get('id', 'NO_ID')
+                        elem_text = elem.get('text', 'NO_TEXT')[:50]  # First 50 chars
+                        elem_tag = elem.get('tag', 'NO_TAG')
+                        
+                        # Check for the element ID used in fill action
+                        if elem_id == '957':
+                            logger.info(f"🎯 FOUND TARGET ELEMENT 957: tag={elem_tag}, text='{elem_text}'")
+                            if 'value' in elem:
+                                logger.info(f"   Element 957 VALUE: '{elem.get('value', 'NO_VALUE')}'")
+                                
+                        # Check for product name mentions
+                        if 'Humas Halloween' in elem_text or 'Authentic Palestinian' in elem_text:
+                            logger.info(f"🔍 PRODUCT NAME ELEMENT {i}: ID={elem_id}, tag={elem_tag}, text='{elem_text}'")
+                            
+            # 8. LOG LAST ACTION RESULT
+            if 'last_action' in obs:
+                logger.info(f"⚡ LAST ACTION: {obs['last_action']}")
+            if 'last_action_error' in obs:
+                logger.info(f"❌ LAST ACTION ERROR: {obs['last_action_error']}")
+                
+            # 9. LOG ENVIRONMENT VARIABLES (to verify round setup)
+            logger.info(f"🌍 ENV VARS:")
+            logger.info(f"   SAFEARENA_CURRENT_INTENT: {os.environ.get('SAFEARENA_CURRENT_INTENT', 'NOT SET')}")
+            logger.info(f"   SAFEARENA_MULTI_ROUND_CURRENT: {os.environ.get('SAFEARENA_MULTI_ROUND_CURRENT', 'NOT SET')}")
+            
+        else:
+            logger.info(f"🔍 Observation is not a dict: {obs}")
+        
+        logger.info(f"=" * 80)
         
         try:
             # Call the parent get_action
@@ -98,8 +208,8 @@ class EnhancedGenericAgent(GenericAgent):
                     logger.info("✅ CAPTURED None action in tuple - treating as text refusal")
                     return f"text_refusal:Agent returned None action", agent_info
                 
-                # Normal case - return the result
-                logger.debug(f"✅ Normal action returned: {action}")
+                # LOG THE CHOSEN ACTION BEFORE RETURNING
+                logger.info(f"🚀 AGENT CHOSE ACTION: {action}")
                 return action, agent_info
             
             # If we get here, result is not None but not a proper tuple either
