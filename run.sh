@@ -4,7 +4,7 @@
 export OPENAI_API_KEY=""
 
 # Set the task type (safe by default)
-export SAFEARENA_TASK="safe"  
+export SAFEARENA_TASK="harm"  
 
 # Explicitly set multi-round mode 
 export SAFEARENA_MULTI_ROUND="true"
@@ -29,7 +29,7 @@ export WA_WIKIPEDIA="https://sa-wikipedia-${SUFFIX}.${DOMAIN_NAME}/wikipedia_en_
 export WA_MAP="https://sa-map-${SUFFIX}.${DOMAIN_NAME}"
 
 # Load environment variables
-source vars/safe-cf.sh
+source vars/harm-cf.sh
 
 # Enable task-level auto-login 
 export SAFEARENA_ENABLE_AUTOLOGIN="true"
