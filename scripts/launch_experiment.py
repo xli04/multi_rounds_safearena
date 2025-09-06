@@ -19,7 +19,7 @@ logging.getLogger().setLevel(logging.INFO)
 
 
 backbone_to_args = {
-    #"claude-3.5-sonnet": lambda harmful: prepare_claude("anthropic/claude-3.5-sonnet-20240620", harmful=harmful),
+    "claude-3.5-sonnet": lambda harmful: prepare_claude("anthropic/claude-3.5-sonnet", harmful=harmful),
     "gpt-4o": lambda harmful: prepare_gpt("gpt-4o-2024-11-20",harmful=harmful),
     "gpt-4o-mini": lambda harmful: prepare_gpt("gpt-4o-mini-2024-07-18", harmful=harmful),
     "llama-3.2-90b": lambda harmful: prepare_vllm_model("meta-llama/Llama-3.2-90B-Vision-Instruct", harmful=harmful),
@@ -28,6 +28,8 @@ backbone_to_args = {
     "qwen-2-vl-72b": lambda harmful: prepare_vllm_model("Qwen/Qwen2-VL-72B-Instruct", harmful=harmful),
     "qwen-2.5-vl-72b": lambda harmful: prepare_vllm_model("Qwen/Qwen2.5-VL-72B-Instruct", harmful=harmful),
     "claude-3.7-sonnet": lambda harmful: prepare_claude("anthropic/claude-3.7-sonnet", harmful=harmful),
+    "claude-sonnet-4": lambda harmful: prepare_claude("anthropic/claude-sonnet-4", harmful=harmful),
+    "claude-opus-4": lambda harmful: prepare_claude("anthropic/claude-opus-4", harmful=harmful),
     "gpt-4.1": lambda harmful: prepare_gpt("gpt-4.1-2025-04-14", harmful=harmful),
 }
 
