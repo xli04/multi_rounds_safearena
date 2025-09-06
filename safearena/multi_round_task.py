@@ -53,6 +53,9 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
         self.max_rounds = 0
         self.current_original_task_id = None
         self.rounds_for_current_task = []
+
+        self.image_dir = Path("/home/ubuntu/utl-multi-exp/image_to_check")
+        self.image_dir.mkdir(parents=True, exist_ok=True)
         
         # Set current task rounds if a task_id is provided
         if task_id is not None:
@@ -67,6 +70,51 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
             data = json.load(f)
         
         return data
+    
+    def store_round_completion_screenshot(self, screenshot_b64: str):
+        """Store the screenshot as a PNG file when a round completes"""
+        import base64
+        from pathlib import Path
+        
+        try:
+            # Save as PNG file
+            previous_screenshot_path = self.image_dir / "screenshot_when_last_round_done.png"
+            
+            with open(previous_screenshot_path, 'wb') as f:
+                f.write(base64.b64decode(screenshot_b64))
+            
+            logger.info(f"Stored round {self.current_round_index + 1} completion screenshot to: {previous_screenshot_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save round completion screenshot: {e}")
+
+
+    def get_previous_round_screenshot_path(self) -> str:
+        """Get the file path of the previous round's screenshot"""
+        previous_screenshot_path = self.image_dir / "screenshot_when_last_round_done.png"
+        
+        if previous_screenshot_path.exists():
+            return str(previous_screenshot_path)
+        else:
+            return ""
+    
+
+    def save_current_screenshot(self, screenshot_b64: str):
+        """Save the current screenshot as a PNG file for evaluation"""
+        import base64
+        
+        try:
+            current_screenshot_path = self.image_dir / "screenshot_for_current_round.png"
+            
+            with open(current_screenshot_path, 'wb') as f:
+                f.write(base64.b64decode(screenshot_b64))
+            
+            logger.info(f"Saved current screenshot to: {current_screenshot_path}")
+            return str(current_screenshot_path)
+            
+        except Exception as e:
+            logger.error(f"Failed to save current screenshot: {e}")
+            return ""
     
     def _setup_rounds_for_task(self, task_id: str) -> None:
         """Set up the rounds for the specified task."""
@@ -317,9 +365,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
         # Basic logging about evaluation
         logger.info(f"Evaluating round {self.current_round_index + 1}/{self.max_rounds} with {len(trajectory)} steps")
 
-        previous_screenshot = None
-        if self.current_round_index > 0:
-            previous_screenshot = os.environ.get(f"SAFEARENA_ROUND_{self.current_round_index - 1}_SCREENSHOT")
+        previous_screenshot = self.get_previous_round_screenshot() if self.current_round_index > 0 else None
         
         # Get the last state for URL checking
         last_state = trajectory[-1] if trajectory else {}
@@ -524,8 +570,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
                     criteria_for_llm,
                     page_html=None,
                     screenshot_path=None,
-                    screenshot_base64=screenshot_base64,
-                    previous_screenshot = previous_screenshot
+                    screenshot_base64=screenshot_base64
                 )
                 # Return the OpenAI evaluation result
                 if ai_eval_result.get("success", False):
@@ -540,7 +585,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
                             page_html: str = None, screenshot_path: str = None, 
                             screenshot_base64: str = None, previous_screenshot: str = None) -> Dict[str, Any]:
         """
-        Use OpenAI's GPT-4.1 to perform a visual evaluation of the page.
+        Use OpenAI's GPT-4o to perform a visual evaluation of the page using file-based screenshot storage.
         
         Args:
             round_intent: The intent/goal of the current round
@@ -551,6 +596,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
             page_html: Optional HTML content (kept for compatibility)
             screenshot_path: Path to screenshot file
             screenshot_base64: Base64 encoded screenshot
+            previous_screenshot: Previous screenshot parameter (ignored, loaded from file)
             
         Returns:
             Dict[str, Any]: Evaluation result with "success" boolean and "reason"
@@ -562,6 +608,7 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
         import base64
         from PIL import Image
         import io
+        from pathlib import Path
         
         task_id = self.current_original_task_id
         round_num = self.current_round_index + 1
@@ -574,20 +621,39 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
             logger.warning("No OpenAI API key found, skipping AI evaluation")
             return {"success": True, "reason": "AI evaluation skipped (no API key)"}
         
-        # Get screenshot data
-        screenshot_b64 = None
-        
+        # FILE-BASED SCREENSHOT HANDLING
+        # Save current screenshot to file
+        current_screenshot_path = ""
         if screenshot_base64:
-            screenshot_b64 = screenshot_base64
-            logger.info("Using provided base64 screenshot")
-        elif screenshot_path and os.path.exists(screenshot_path):
-            # Read and encode screenshot
-            try:
-                with open(screenshot_path, "rb") as img_file:
-                    screenshot_b64 = base64.b64encode(img_file.read()).decode('utf-8')
-                logger.info(f"Loaded screenshot from {screenshot_path}")
-            except Exception as e:
-                logger.error(f"Failed to load screenshot: {e}")
+            current_screenshot_path = self.save_current_screenshot(screenshot_base64)
+        
+        # Get previous screenshot file path
+        previous_screenshot_path = ""
+        if self.current_round_index > 0:
+            previous_screenshot_path = self.get_previous_round_screenshot_path()
+        
+        # Load images and convert to base64 for OpenAI
+        current_image_b64 = ""
+        previous_image_b64 = ""
+        
+        try:
+            # Load current screenshot
+            if current_screenshot_path and Path(current_screenshot_path).exists():
+                with open(current_screenshot_path, 'rb') as f:
+                    current_image_b64 = base64.b64encode(f.read()).decode('utf-8')
+            
+            # Load previous screenshot
+            if previous_screenshot_path and Path(previous_screenshot_path).exists():
+                with open(previous_screenshot_path, 'rb') as f:
+                    previous_image_b64 = base64.b64encode(f.read()).decode('utf-8')
+                logger.info("✅ Loaded previous screenshot from file")
+            
+        except Exception as e:
+            logger.error(f"Failed to load screenshot files: {e}")
+            return {"success": False, "reason": f"Failed to load images: {e}"}
+        
+        # Use current_image_b64 as screenshot_b64 for compatibility with existing code
+        screenshot_b64 = current_image_b64
         
         if not screenshot_b64:
             logger.warning("No screenshot available for visual evaluation, falling back to text-only")
@@ -731,6 +797,8 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
         try:
             # Prepare messages based on whether we have a screenshot
             if screenshot_b64:
+                
+                # Build messages with images
                 messages = [
                     {
                         "role": "system", 
@@ -739,13 +807,28 @@ class MultiRoundSafeArenaTask(GenericSafeArenaTask):
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{previous_screenshot}"}},
-                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_base64}"}}
+                            {"type": "text", "text": prompt}
                         ]
                     }
                 ]
-                model = "gpt-4.1"  # or "gpt-4o" for better vision capabilities
+                
+                # Add images to message content
+                if previous_image_b64:
+                    messages[1]["content"].append({
+                        "type": "image_url", 
+                        "image_url": {"url": f"data:image/png;base64,{previous_image_b64}"}
+                    })
+                    
+                if current_image_b64:
+                    messages[1]["content"].append({
+                        "type": "image_url", 
+                        "image_url": {"url": f"data:image/png;base64,{current_image_b64}"}
+                    })
+                
+                model = "gpt-4.1"
+                
+                logger.info(f"Sending {len([m for m in messages[1]['content'] if m['type'] == 'image_url'])} images to OpenAI")
+                
             else:
                 print("Warning, no screenshot found")
                 # Fallback to text-only evaluation

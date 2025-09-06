@@ -371,9 +371,8 @@ class MultiRoundEnvWrapper(gym.Wrapper):
             screenshot_b64 = round_end_state.get('screenshot_base64', '')
             
             if screenshot_b64:
-                # Store screenshot for next round's evaluation
-                os.environ[f"SAFEARENA_ROUND_{self.current_round}_SCREENSHOT"] = screenshot_b64
-                logger.info(f"Stored round {self.current_round + 1} screenshot for next round's evaluation")
+                # Store screenshot in task object for next round's comparison
+                self.multi_round_task.store_round_completion_screenshot(screenshot_b64)
             
             # Use overridden reward from evaluation if available
             actual_reward = info.get('reward', reward)
@@ -621,8 +620,8 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                     # Save simplified results
                     self._save_simplified_results()
         
-        # Store the current state in trajectory for the current round
-        self.round_trajectory.append(state)
+        # # Store the current state in trajectory for the current round
+        # self.round_trajectory.append(state)
         
         # If episode is ending (terminated or truncated), save results
         if (terminated or truncated) and self.episode_done:
@@ -828,24 +827,34 @@ class MultiRoundEnvWrapper(gym.Wrapper):
                         info['evaluation_reason'] = eval_result.get('reason', 'Task evaluation succeeded')
                         return True
                     else:
-                        logger.info(f"Round {self.current_round + 1} evaluation FAILED on termination: {eval_result.get('reason', 'Failed')}")
-                        # Override reward to 0.0 for failed evaluation
-                        info['reward'] = 0.0  # Store override reward in info
-                        info['success'] = False
-                        info['evaluation_success'] = False
-                        info['evaluation_reason'] = eval_result.get('reason', 'Task evaluation failed')
-                        return True  # Still mark round as done to move to next
+                        # EVALUATION FAILED - Skip entire task
+                        logger.warning(f"Round {self.current_round + 1} evaluation FAILED on termination: {eval_result.get('reason', 'Failed')}")
+                        
+                        # Mark entire episode as done to skip task
+                        self.episode_done = True
+                        info['task_skipped'] = True
+                        info['skip_reason'] = f'Evaluation failed: {eval_result.get("reason", "Unknown")}'
+                        info['episode_success'] = False
+                        info['reward'] = 0.0
+                        
+                        return False  # Don't advance to next round, end task
                             
                 except Exception as e:
-                    logger.error(f"Error during termination evaluation: {e}")
-                    info['reward'] = 0.0
-                    info['success'] = False
-                    return True  # Move to next round on error
+                        logger.error(f"Error during termination evaluation: {e}")
+                        # On evaluation error, skip entire task
+                        self.episode_done = True
+                        info['task_skipped'] = True
+                        info['skip_reason'] = f'Evaluation error: {e}'
+                        info['episode_success'] = False
+                        info['reward'] = 0.0
+                        return False
             else:
-                # No task to evaluate, mark as failed
+                self.episode_done = True
+                info['task_skipped'] = True
+                info['skip_reason'] = 'No task available for evaluation'
+                info['episode_success'] = False
                 info['reward'] = 0.0
-                info['success'] = False
-                return True
+                return False
         
         # For non-terminated cases, continue with normal evaluation
         # Ensure task reference is maintained
@@ -973,10 +982,9 @@ class MultiRoundEnvWrapper(gym.Wrapper):
         
         if page:
             try:
-                # Capture screenshot as bytes
                 screenshot_bytes = page.screenshot()
-                # Convert to base64 for storage
                 state['screenshot_base64'] = base64.b64encode(screenshot_bytes).decode('utf-8')
+                
             except Exception as e:
                 logger.warning(f"Failed to capture screenshot: {e}")
         

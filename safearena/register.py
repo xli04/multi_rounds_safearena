@@ -24,7 +24,6 @@ else:
 multi_round_mode = os.getenv("SAFEARENA_MULTI_ROUND", "").lower() in ['true', '1']
 
 # Auto-login control: support both positive and negative environment variables for flexibility
-enable_autologin_mode = os.getenv("SAFEARENA_ENABLE_AUTOLOGIN", "").lower() in ['true', '1']
 disable_autologin_mode = os.getenv("SAFEARENA_NO_AUTOLOGIN", "").lower() in ['true', '1']
 
 # Register all SafeArena tasks
@@ -33,12 +32,7 @@ for task_id in config.TASK_IDS:
     
     # Determine auto_login setting
     # Default is False (no auto-login) unless explicitly enabled
-    if enable_autologin_mode:
-        auto_login = True  # Explicitly enabled via SAFEARENA_ENABLE_AUTOLOGIN=true
-    elif disable_autologin_mode:
-        auto_login = False  # Explicitly disabled via SAFEARENA_NO_AUTOLOGIN=true
-    else:
-        auto_login = False  # Default: no auto-login
+    auto_login = True
     
     # Determine which task class to use based on mode
     if multi_round_mode and os.path.exists(multi_round_data_path):
